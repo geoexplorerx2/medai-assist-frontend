@@ -37,7 +37,7 @@ export default function ApiKeyGate() {
         initial={{ opacity: 0, y: 30, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="glass rounded-3xl shadow-2xl p-10 w-full max-w-md relative z-10"
+        className="glass rounded-3xl shadow-2xl p-6 sm:p-10 w-full max-w-md relative z-10"
       >
         <div className="flex flex-col items-center text-center mb-8">
           <Logo size={64} />

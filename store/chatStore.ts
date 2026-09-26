@@ -18,16 +18,20 @@ interface ChatState {
   availableSpecialties: string[];
   selectedSpecialty: string | null;
   feedbackSubmitting: string | null;
+  isMobileSidebarOpen: boolean;
 
   setApiKey: (key: string) => void;
   lockApi: () => void;
   verifyBackend: () => Promise<boolean>;
-  createSession: () => string;
+  createSession: (initialTitle?: string) => string;
   setCurrentSession: (id: string) => void;
   sendMessage: (query: string, topK?: number) => Promise<void>;
   deleteSession: (id: string) => void;
+  clearSessionMessages: (id: string) => void;
   loadSpecialties: () => Promise<void>;
   setSelectedSpecialty: (s: string | null) => void;
+  setMobileSidebarOpen: (open: boolean) => void;
+  toggleMobileSidebar: () => void;
   submitFeedback: (
     messageId: string,
     rating: FeedbackRating,
@@ -48,9 +52,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   availableSpecialties: [],
   selectedSpecialty: null,
   feedbackSubmitting: null,
+  isMobileSidebarOpen: false,
 
   setApiKey: (key) => set({ apiKey: key }),
   lockApi: () => set({ isApiLocked: true }),
+
+  setMobileSidebarOpen: (open) => set({ isMobileSidebarOpen: open }),
+  toggleMobileSidebar: () => set((s) => ({ isMobileSidebarOpen: !s.isMobileSidebarOpen })),
 
   verifyBackend: async () => {
     const healthy = await checkHealth();
@@ -69,29 +77,48 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setSelectedSpecialty: (s) => set({ selectedSpecialty: s === '' ? null : s }),
 
-  createSession: () => {
+  createSession: (initialTitle = 'New Consultation') => {
     const id = generateId();
     const newSession: Session = {
       id,
-      title: 'New Consultation',
+      title: initialTitle,
       messages: [],
       createdAt: new Date().toISOString(),
+      specialty: get().selectedSpecialty,
     };
     set((state) => ({
-      sessions: [...state.sessions, newSession],
+      sessions: [newSession, ...state.sessions],
       currentSessionId: id,
       error: null,
+      isMobileSidebarOpen: false,
     }));
     return id;
   },
 
-  setCurrentSession: (id) => set({ currentSessionId: id, error: null }),
+  setCurrentSession: (id) => set({ currentSessionId: id, error: null, isMobileSidebarOpen: false }),
+
+  deleteSession: (id) =>
+    set((s) => {
+      const remaining = s.sessions.filter((sess) => sess.id !== id);
+      return {
+        sessions: remaining,
+        currentSessionId:
+          s.currentSessionId === id ? remaining[0]?.id ?? null : s.currentSessionId,
+      };
+    }),
+
+  clearSessionMessages: (id) =>
+    set((s) => ({
+      sessions: s.sessions.map((sess) =>
+        sess.id === id ? { ...sess, messages: [] } : sess
+      ),
+    })),
 
   sendMessage: async (query, topK = 3) => {
     const state = get();
     let sessionId = state.currentSessionId;
     if (!sessionId) {
-      sessionId = get().createSession();
+      sessionId = get().createSession(query.slice(0, 36) + (query.length > 36 ? '...' : ''));
     }
 
     const userMessage: Message = {
@@ -110,7 +137,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               ...sess,
               title:
                 sess.messages.length === 0
-                  ? query.slice(0, 40) + (query.length > 40 ? '...' : '')
+                  ? query.slice(0, 36) + (query.length > 36 ? '...' : '')
                   : sess.title,
               messages: [...sess.messages, userMessage],
             }
@@ -137,20 +164,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
         timestamp: new Date().toISOString(),
         feedback: null,
         detected_specialty: response.detected_specialty,
+        normalized_clinical_terms: response.normalized_clinical_terms,
       };
 
       set((s) => ({
         isLoading: false,
         sessions: s.sessions.map((sess) =>
           sess.id === sessionId
-            ? { ...sess, messages: [...sess.messages, aiMessage] }
+            ? {
+                ...sess,
+                specialty: response.detected_specialty || sess.specialty,
+                messages: [...sess.messages, aiMessage],
+              }
             : sess
         ),
       }));
     } catch (err) {
       set({
         isLoading: false,
-        error: err instanceof Error ? err.message : 'Unknown error occurred',
+        error: err instanceof Error ? err.message : 'An error occurred while connecting to the RAG engine.',
       });
     }
   },
@@ -205,20 +237,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (err) {
       set({
         feedbackSubmitting: null,
-        error: err instanceof Error ? err.message : 'Failed to submit feedback',
+        error: err instanceof Error ? err.message : 'Failed to submit clinical feedback.',
       });
     }
   },
-
-  deleteSession: (id) =>
-    set((s) => {
-      const remaining = s.sessions.filter((sess) => sess.id !== id);
-      return {
-        sessions: remaining,
-        currentSessionId:
-          s.currentSessionId === id
-            ? remaining[0]?.id ?? null
-            : s.currentSessionId,
-      };
-    }),
 }));

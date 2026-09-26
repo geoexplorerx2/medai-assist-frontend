@@ -1,7 +1,9 @@
 import { ChatRequest, ChatResponse, FeedbackRequest, FeedbackResponse } from './types';
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+  process.env.NEXT_PUBLIC_API_BASE_URL !== undefined
+    ? process.env.NEXT_PUBLIC_API_BASE_URL
+    : '';
 const DEFAULT_API_KEY =
   process.env.NEXT_PUBLIC_DEFAULT_API_KEY || '';
 

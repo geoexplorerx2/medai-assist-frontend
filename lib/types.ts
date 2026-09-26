@@ -1,6 +1,8 @@
 export interface SourceDocument {
   content: string;
   specialty: string;
+  sample_name?: string;
+  doc_id?: string;
 }
 
 export interface ChatRequest {
@@ -15,6 +17,7 @@ export interface ChatResponse {
   sources: SourceDocument[];
   query: string;
   detected_specialty?: string | null;
+  normalized_clinical_terms?: string[];
 }
 
 export interface Message {
@@ -26,6 +29,7 @@ export interface Message {
   feedback?: 'verify' | 'correct' | null;
   correction?: string;
   detected_specialty?: string | null;
+  normalized_clinical_terms?: string[];
 }
 
 export interface Session {
@@ -33,6 +37,7 @@ export interface Session {
   title: string;
   messages: Message[];
   createdAt: string;
+  specialty?: string | null;
 }
 
 export type FeedbackRating = 'verify' | 'correct';
