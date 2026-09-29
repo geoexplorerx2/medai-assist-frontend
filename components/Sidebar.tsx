@@ -9,10 +9,11 @@ import {
   X,
   Filter,
   Stethoscope,
-  Activity,
   Calendar,
-  Sparkles,
-  ChevronRight,
+  LogOut,
+  User,
+  ShieldCheck,
+  Settings,
 } from 'lucide-react';
 import Logo from './Logo';
 
@@ -29,6 +30,9 @@ export default function Sidebar() {
     isMobileSidebarOpen,
     setMobileSidebarOpen,
     isBackendHealthy,
+    currentDoctor,
+    setProfileModalOpen,
+    logout,
   } = useChatStore();
 
   const sidebarContent = (
@@ -101,7 +105,7 @@ export default function Sidebar() {
       {/* Consultations List */}
       <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
         <div className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-slate-400">
-          <span>Recent Consultations</span>
+          <span>Doctor Consultations</span>
           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-400">
             {sessions.length}
           </span>
@@ -174,20 +178,52 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Footer Info */}
-      <div className="p-3 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <span
-            className={`w-2 h-2 rounded-full ${
-              isBackendHealthy ? 'bg-emerald-400 pulse-glow-green' : 'bg-amber-400'
-            }`}
-          />
-          <span className="text-[10px]">
-            {isBackendHealthy ? 'Engine Connected' : 'Connecting...'}
-          </span>
+      {/* Doctor Profile Footer in Sidebar */}
+      {currentDoctor && (
+        <div className="p-3 border-t border-slate-800 bg-slate-950/40">
+          <div
+            onClick={() => setProfileModalOpen(true)}
+            className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer group"
+          >
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white text-xs font-bold shadow-md flex-shrink-0">
+              {currentDoctor.full_name.replace('Dr. ', '').charAt(0)}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-white truncate group-hover:text-cyan-400 transition-colors">
+                {currentDoctor.full_name}
+              </p>
+              <p className="text-[10px] text-slate-400 truncate">
+                {currentDoctor.specialty}
+              </p>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                logout();
+              }}
+              title="Sign Out"
+              className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-700/60 rounded-lg transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="mt-2 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500">
+            <span className="flex items-center gap-1">
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  isBackendHealthy ? 'bg-emerald-400' : 'bg-amber-400'
+                }`}
+              />
+              {isBackendHealthy ? 'System Active' : 'Connecting'}
+            </span>
+            <span className="flex items-center gap-1 text-[9px] text-slate-400">
+              <ShieldCheck className="w-3 h-3 text-emerald-500" />
+              HIPAA Session
+            </span>
+          </div>
         </div>
-        <span className="text-[9px] text-slate-400">HIPAA Sandbox</span>
-      </div>
+      )}
     </div>
   );
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useChatStore } from '@/store/chatStore';
-import { Menu, Plus, Stethoscope, ShieldCheck, Activity } from 'lucide-react';
+import { Menu, Plus, Stethoscope, User, ChevronDown } from 'lucide-react';
 import Logo from './Logo';
 
 export default function Navbar() {
@@ -12,6 +12,8 @@ export default function Navbar() {
     toggleMobileSidebar,
     isBackendHealthy,
     selectedSpecialty,
+    currentDoctor,
+    setProfileModalOpen,
   } = useChatStore();
 
   const currentSession = sessions.find((s) => s.id === currentSessionId);
@@ -42,7 +44,7 @@ export default function Navbar() {
               </span>
             </div>
             {currentSession && (
-              <p className="text-[11px] text-slate-500 truncate max-w-[200px] sm:max-w-[320px] md:max-w-[450px]">
+              <p className="text-[11px] text-slate-500 truncate max-w-[180px] sm:max-w-[280px] md:max-w-[380px]">
                 {currentSession.title}
               </p>
             )}
@@ -86,6 +88,28 @@ export default function Navbar() {
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">New Consultation</span>
         </button>
+
+        {/* Doctor Profile Badge */}
+        {currentDoctor && (
+          <button
+            onClick={() => setProfileModalOpen(true)}
+            title="View Doctor Profile"
+            className="flex items-center gap-2 pl-2 pr-2.5 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-200/90 rounded-xl text-xs font-semibold text-slate-800 transition-all cursor-pointer group shadow-2xs hover:shadow-xs"
+          >
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center text-white text-xs font-bold shadow-xs">
+              {currentDoctor.full_name.replace('Dr. ', '').charAt(0)}
+            </div>
+            <div className="hidden md:flex flex-col text-left">
+              <span className="truncate max-w-[110px] leading-tight font-bold text-slate-800 group-hover:text-blue-600">
+                {currentDoctor.full_name}
+              </span>
+              <span className="text-[10px] text-slate-500 truncate max-w-[110px] leading-tight">
+                {currentDoctor.specialty}
+              </span>
+            </div>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 ml-0.5" />
+          </button>
+        )}
       </div>
     </header>
   );

@@ -1,13 +1,37 @@
 import { create } from 'zustand';
-import { Message, Session, FeedbackRating } from '@/lib/types';
+import {
+  Message,
+  Session,
+  FeedbackRating,
+  DoctorProfile,
+  DoctorPublicSummary,
+  DoctorLoginRequest,
+  DoctorRegisterRequest,
+  DoctorUpdateRequest
+} from '@/lib/types';
 import {
   sendChatMessage,
   checkHealth,
   fetchSpecialties,
   submitDoctorFeedback,
+  loginDoctor as apiLoginDoctor,
+  registerDoctor as apiRegisterDoctor,
+  fetchDoctorProfile,
+  updateDoctorProfile as apiUpdateDoctorProfile,
+  fetchDemoDoctors
 } from '@/lib/api';
 
 interface ChatState {
+  // Doctor Auth & Profile
+  currentDoctor: DoctorProfile | null;
+  doctorToken: string | null;
+  isAuthenticated: boolean;
+  authLoading: boolean;
+  authError: string | null;
+  demoDoctors: DoctorPublicSummary[];
+  isProfileModalOpen: boolean;
+
+  // Chat & Engine
   sessions: Session[];
   currentSessionId: string | null;
   apiKey: string;
@@ -20,9 +44,21 @@ interface ChatState {
   feedbackSubmitting: string | null;
   isMobileSidebarOpen: boolean;
 
+  // Actions
   setApiKey: (key: string) => void;
   lockApi: () => void;
   verifyBackend: () => Promise<boolean>;
+  
+  // Auth Actions
+  initAuth: () => Promise<void>;
+  login: (credentials: DoctorLoginRequest) => Promise<boolean>;
+  register: (data: DoctorRegisterRequest) => Promise<boolean>;
+  logout: () => void;
+  updateProfile: (updates: DoctorUpdateRequest) => Promise<boolean>;
+  loadDemoDoctors: () => Promise<void>;
+  setProfileModalOpen: (open: boolean) => void;
+
+  // Consultation Actions
   createSession: (initialTitle?: string) => string;
   setCurrentSession: (id: string) => void;
   sendMessage: (query: string, topK?: number) => Promise<void>;
@@ -41,10 +77,21 @@ interface ChatState {
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
+const getStorageKey = (doctorId?: string) =>
+  doctorId ? `medai_sessions_${doctorId}` : 'medai_sessions_anonymous';
+
 export const useChatStore = create<ChatState>((set, get) => ({
+  currentDoctor: null,
+  doctorToken: null,
+  isAuthenticated: false,
+  authLoading: false,
+  authError: null,
+  demoDoctors: [],
+  isProfileModalOpen: false,
+
   sessions: [],
   currentSessionId: null,
-  apiKey: process.env.NEXT_PUBLIC_DEFAULT_API_KEY || '',
+  apiKey: process.env.NEXT_PUBLIC_DEFAULT_API_KEY || 'medai_super_secret_key_2024',
   isApiLocked: false,
   isLoading: false,
   error: null,
@@ -59,11 +106,161 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setMobileSidebarOpen: (open) => set({ isMobileSidebarOpen: open }),
   toggleMobileSidebar: () => set((s) => ({ isMobileSidebarOpen: !s.isMobileSidebarOpen })),
+  setProfileModalOpen: (open) => set({ isProfileModalOpen: open }),
 
   verifyBackend: async () => {
     const healthy = await checkHealth();
     set({ isBackendHealthy: healthy });
     return healthy;
+  },
+
+  loadDemoDoctors: async () => {
+    try {
+      const list = await fetchDemoDoctors();
+      set({ demoDoctors: list });
+    } catch (e) {
+      console.error('Failed to fetch demo doctors:', e);
+    }
+  },
+
+  initAuth: async () => {
+    if (typeof window === 'undefined') return;
+    const token = localStorage.getItem('medai_doctor_token');
+    const storedDoctor = localStorage.getItem('medai_doctor_profile');
+
+    if (token && storedDoctor) {
+      try {
+        const doctor: DoctorProfile = JSON.parse(storedDoctor);
+        // Load doctor-scoped sessions
+        const savedSessionsRaw = localStorage.getItem(getStorageKey(doctor.id));
+        const savedSessions: Session[] = savedSessionsRaw ? JSON.parse(savedSessionsRaw) : [];
+
+        set({
+          doctorToken: token,
+          currentDoctor: doctor,
+          isAuthenticated: true,
+          sessions: savedSessions,
+          currentSessionId: savedSessions[0]?.id || null,
+          selectedSpecialty: doctor.specialty || null,
+        });
+
+        // Background profile refresh
+        fetchDoctorProfile(token).then((freshDoc) => {
+          localStorage.setItem('medai_doctor_profile', JSON.stringify(freshDoc));
+          set({ currentDoctor: freshDoc });
+        }).catch(() => {});
+      } catch (e) {
+        console.error('Error restoring doctor session:', e);
+        localStorage.removeItem('medai_doctor_token');
+        localStorage.removeItem('medai_doctor_profile');
+      }
+    }
+  },
+
+  login: async (credentials) => {
+    set({ authLoading: true, authError: null });
+    try {
+      const resp = await apiLoginDoctor(credentials);
+      const doctor = resp.doctor;
+      const token = resp.access_token;
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('medai_doctor_token', token);
+        localStorage.setItem('medai_doctor_profile', JSON.stringify(doctor));
+      }
+
+      // Load sessions specific to this doctor
+      const savedSessionsRaw = typeof window !== 'undefined' ? localStorage.getItem(getStorageKey(doctor.id)) : null;
+      const savedSessions: Session[] = savedSessionsRaw ? JSON.parse(savedSessionsRaw) : [];
+
+      set({
+        currentDoctor: doctor,
+        doctorToken: token,
+        isAuthenticated: true,
+        authLoading: false,
+        authError: null,
+        sessions: savedSessions,
+        currentSessionId: savedSessions[0]?.id || null,
+        selectedSpecialty: doctor.specialty || null,
+      });
+
+      get().loadSpecialties();
+      return true;
+    } catch (err) {
+      set({
+        authLoading: false,
+        authError: err instanceof Error ? err.message : 'Invalid clinical credentials.',
+      });
+      return false;
+    }
+  },
+
+  register: async (data) => {
+    set({ authLoading: true, authError: null });
+    try {
+      const resp = await apiRegisterDoctor(data);
+      const doctor = resp.doctor;
+      const token = resp.access_token;
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('medai_doctor_token', token);
+        localStorage.setItem('medai_doctor_profile', JSON.stringify(doctor));
+      }
+
+      set({
+        currentDoctor: doctor,
+        doctorToken: token,
+        isAuthenticated: true,
+        authLoading: false,
+        authError: null,
+        sessions: [],
+        currentSessionId: null,
+        selectedSpecialty: doctor.specialty || null,
+      });
+
+      get().loadSpecialties();
+      return true;
+    } catch (err) {
+      set({
+        authLoading: false,
+        authError: err instanceof Error ? err.message : 'Registration failed.',
+      });
+      return false;
+    }
+  },
+
+  logout: () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('medai_doctor_token');
+      localStorage.removeItem('medai_doctor_profile');
+    }
+    set({
+      currentDoctor: null,
+      doctorToken: null,
+      isAuthenticated: false,
+      sessions: [],
+      currentSessionId: null,
+      isProfileModalOpen: false,
+    });
+  },
+
+  updateProfile: async (updates) => {
+    const { doctorToken, currentDoctor } = get();
+    if (!doctorToken || !currentDoctor) return false;
+
+    try {
+      const updated = await apiUpdateDoctorProfile(updates, doctorToken);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('medai_doctor_profile', JSON.stringify(updated));
+      }
+      set({ currentDoctor: updated });
+      return true;
+    } catch (err) {
+      set({
+        authError: err instanceof Error ? err.message : 'Failed to update profile.',
+      });
+      return false;
+    }
   },
 
   loadSpecialties: async () => {
@@ -79,40 +276,55 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   createSession: (initialTitle = 'New Consultation') => {
     const id = generateId();
+    const currentDoc = get().currentDoctor;
     const newSession: Session = {
       id,
       title: initialTitle,
       messages: [],
       createdAt: new Date().toISOString(),
       specialty: get().selectedSpecialty,
+      doctorId: currentDoc?.id,
     };
-    set((state) => ({
-      sessions: [newSession, ...state.sessions],
+    
+    const updatedSessions = [newSession, ...get().sessions];
+    set({
+      sessions: updatedSessions,
       currentSessionId: id,
       error: null,
       isMobileSidebarOpen: false,
-    }));
+    });
+
+    if (typeof window !== 'undefined' && currentDoc) {
+      localStorage.setItem(getStorageKey(currentDoc.id), JSON.stringify(updatedSessions));
+    }
     return id;
   },
 
   setCurrentSession: (id) => set({ currentSessionId: id, error: null, isMobileSidebarOpen: false }),
 
-  deleteSession: (id) =>
-    set((s) => {
-      const remaining = s.sessions.filter((sess) => sess.id !== id);
-      return {
-        sessions: remaining,
-        currentSessionId:
-          s.currentSessionId === id ? remaining[0]?.id ?? null : s.currentSessionId,
-      };
-    }),
+  deleteSession: (id) => {
+    const currentDoc = get().currentDoctor;
+    const remaining = get().sessions.filter((sess) => sess.id !== id);
+    set({
+      sessions: remaining,
+      currentSessionId:
+        get().currentSessionId === id ? remaining[0]?.id ?? null : get().currentSessionId,
+    });
+    if (typeof window !== 'undefined' && currentDoc) {
+      localStorage.setItem(getStorageKey(currentDoc.id), JSON.stringify(remaining));
+    }
+  },
 
-  clearSessionMessages: (id) =>
-    set((s) => ({
-      sessions: s.sessions.map((sess) =>
-        sess.id === id ? { ...sess, messages: [] } : sess
-      ),
-    })),
+  clearSessionMessages: (id) => {
+    const currentDoc = get().currentDoctor;
+    const updated = get().sessions.map((sess) =>
+      sess.id === id ? { ...sess, messages: [] } : sess
+    );
+    set({ sessions: updated });
+    if (typeof window !== 'undefined' && currentDoc) {
+      localStorage.setItem(getStorageKey(currentDoc.id), JSON.stringify(updated));
+    }
+  },
 
   sendMessage: async (query, topK = 3) => {
     const state = get();
@@ -128,22 +340,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
       timestamp: new Date().toISOString(),
     };
 
-    set((s) => ({
+    const intermediateSessions = get().sessions.map((sess) =>
+      sess.id === sessionId
+        ? {
+            ...sess,
+            title:
+              sess.messages.length === 0
+                ? query.slice(0, 36) + (query.length > 36 ? '...' : '')
+                : sess.title,
+            messages: [...sess.messages, userMessage],
+          }
+        : sess
+    );
+
+    set({
       isLoading: true,
       error: null,
-      sessions: s.sessions.map((sess) =>
-        sess.id === sessionId
-          ? {
-              ...sess,
-              title:
-                sess.messages.length === 0
-                  ? query.slice(0, 36) + (query.length > 36 ? '...' : '')
-                  : sess.title,
-              messages: [...sess.messages, userMessage],
-            }
-          : sess
-      ),
-    }));
+      sessions: intermediateSessions,
+    });
 
     try {
       const response = await sendChatMessage(
@@ -152,8 +366,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
           session_id: sessionId,
           top_k: topK,
           specialty_filter: state.selectedSpecialty,
+          doctor_id: state.currentDoctor?.id,
         },
-        state.apiKey
+        state.apiKey,
+        state.doctorToken || undefined
       );
 
       const aiMessage: Message = {
@@ -167,18 +383,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
         normalized_clinical_terms: response.normalized_clinical_terms,
       };
 
-      set((s) => ({
+      const finalSessions = get().sessions.map((sess) =>
+        sess.id === sessionId
+          ? {
+              ...sess,
+              specialty: response.detected_specialty || sess.specialty,
+              messages: [...sess.messages, aiMessage],
+            }
+          : sess
+      );
+
+      set({
         isLoading: false,
-        sessions: s.sessions.map((sess) =>
-          sess.id === sessionId
-            ? {
-                ...sess,
-                specialty: response.detected_specialty || sess.specialty,
-                messages: [...sess.messages, aiMessage],
-              }
-            : sess
-        ),
-      }));
+        sessions: finalSessions,
+      });
+
+      if (typeof window !== 'undefined' && state.currentDoctor) {
+        localStorage.setItem(getStorageKey(state.currentDoctor.id), JSON.stringify(finalSessions));
+      }
     } catch (err) {
       set({
         isLoading: false,
@@ -211,29 +433,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
           original_answer: message.content,
           query,
           correction,
+          doctor_id: state.currentDoctor?.id,
         },
-        state.apiKey
+        state.apiKey,
+        state.doctorToken || undefined
       );
 
-      set((s) => ({
+      const updatedSessions = state.sessions.map((sess) =>
+        sess.id === session.id
+          ? {
+              ...sess,
+              messages: sess.messages.map((m) =>
+                m.id === messageId
+                  ? {
+                      ...m,
+                      feedback: rating,
+                      correction: correction || undefined,
+                    }
+                  : m
+              ),
+            }
+          : sess
+      );
+
+      set({
         feedbackSubmitting: null,
-        sessions: s.sessions.map((sess) =>
-          sess.id === session.id
-            ? {
-                ...sess,
-                messages: sess.messages.map((m) =>
-                  m.id === messageId
-                    ? {
-                        ...m,
-                        feedback: rating,
-                        correction: correction || undefined,
-                      }
-                    : m
-                ),
-              }
-            : sess
-        ),
-      }));
+        sessions: updatedSessions,
+      });
+
+      if (typeof window !== 'undefined' && state.currentDoctor) {
+        localStorage.setItem(getStorageKey(state.currentDoctor.id), JSON.stringify(updatedSessions));
+      }
     } catch (err) {
       set({
         feedbackSubmitting: null,
