@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MedAI-Assist Frontend — سامانه هوش مصنوعی بالینی
 
-## Getting Started
+رابط کاربری پیشرفته و مدرن سامانه MedAI-Assist طراحی‌شده با Next.js 16، React 19، Tailwind CSS، Framer Motion و فونت استاندارد وزیرمتن.
 
-First, run the development server:
+---
+
+## 👥 اطلاعات کاربری و دسترسی‌های سامانه (Default Credentials)
+
+جهت ورود به سامانه و تست بخش‌های مختلف از اطلاعات کاربری زیر استفاده نمایید:
+
+| ردیف | نام کاربری (Username) | رمز عبور (Password) | نقش کاربری (Role) | دسترسی‌ها و اختیارات (Permissions) |
+| :---: | :---: | :---: | :---: | :--- |
+| **۱** | `admin` | `admin123` | **مدیر ارشد سامانه (Admin)** | • دسترسی به پنل مدیریت (Admin Panel)<br>• تعریف و ایجاد حساب‌های کاربری پزشکان<br>• مدیریت و تغییر دسترسی هر کاربر (آپلود PDF، ضبط صدا، ثبت پرونده، فعال/غیرفعال‌سازی)<br>• آپلود فایل JSON و وکتورایز خودکار پایگاه دانش RAG |
+| **۲** | `dr_maryam` | `password1234` | **پزشک معالج (Doctor)** | • ثبت شرح‌حال و مشاوره تشخیصی<br>• پیوست اسناد و آزمایشات بیمار (PDF/تصویر)<br>• دیکته صوتی هوشمند (Whisper AI)<br>• تأیید یا ثبت اصلاحیه برای پاسخ‌های بالینی |
+| **۳** | `dr_reza` | `password123` | **پزشک معالج (Doctor)** | • دسترسی به تمامی امکانات مشاوره بالینی |
+
+> 📌 **نکته**: ثبت‌نام عمومی غیرفعال است و تنها مدیر سیستم (`admin`) قادر به تعریف پزشکان و تخصیص سطح دسترسی به آن‌ها می‌باشد.
+
+---
+
+## 🚀 راهنمای راه‌اندازی فرانت‌اند
 
 ```bash
+# نصب وابستگی‌ها
+npm install
+
+# اجرای سرور توسعه
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# ساخت نسخه پروداکشن
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+آدرس سامانه در مرورگر: `http://localhost:3000`

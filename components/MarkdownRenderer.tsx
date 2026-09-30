@@ -9,7 +9,7 @@ interface Props {
 
 export default function MarkdownRenderer({ content }: Props) {
   return (
-    <div className="markdown-content">
+    <div id="markdown-renderer-root" className="markdown-content">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>
         {content}
       </ReactMarkdown>
