@@ -4,12 +4,12 @@ import {
   Session,
   FeedbackRating,
   DoctorProfile,
-  DoctorPublicSummary,
   DoctorLoginRequest,
   DoctorRegisterRequest,
-  DoctorUpdateRequest,
+  UserPermissionsUpdateRequest,
   PatientDocument,
-  CaseContributionRequest
+  CaseContributionRequest,
+  SystemSettings,
 } from '@/lib/types';
 import {
   sendChatMessage,
@@ -19,15 +19,18 @@ import {
   loginDoctor as apiLoginDoctor,
   registerDoctor as apiRegisterDoctor,
   fetchDoctorProfile,
-  updateDoctorProfile as apiUpdateDoctorProfile,
-  fetchDemoDoctors,
   uploadPatientDocument,
   fetchSessionDocuments,
   deleteSessionDocument,
-  contributeClinicalCase
+  contributeClinicalCase,
+  fetchPublicSettings,
+  updateAdminSettings as apiUpdateAdminSettings,
+  fetchAdminDoctors as apiFetchAdminDoctors,
+  createDoctorByAdmin as apiCreateDoctorByAdmin,
+  deleteDoctorByAdmin as apiDeleteDoctorByAdmin,
+  updateUserPermissionsByAdmin as apiUpdateUserPermissionsByAdmin,
+  importDatasetByAdmin as apiImportDatasetByAdmin,
 } from '@/lib/api';
-
-
 
 interface ChatState {
   // Doctor Auth & Profile
@@ -36,9 +39,23 @@ interface ChatState {
   isAuthenticated: boolean;
   authLoading: boolean;
   authError: string | null;
-  demoDoctors: DoctorPublicSummary[];
   isProfileModalOpen: boolean;
   isContributeModalOpen: boolean;
+
+  // System Settings & Feature Toggles
+  systemSettings: SystemSettings;
+  loadSystemSettings: () => Promise<void>;
+
+  // Admin Management State & Actions
+  adminDoctors: DoctorProfile[];
+  isAdminLoading: boolean;
+  adminError: string | null;
+  loadAdminDoctors: () => Promise<void>;
+  createDoctorByAdminAction: (data: DoctorRegisterRequest) => Promise<boolean>;
+  updateUserPermissionsAction: (userId: string, updates: UserPermissionsUpdateRequest) => Promise<boolean>;
+  deleteDoctorByAdminAction: (doctorId: string) => Promise<boolean>;
+  updateSystemSettingsAction: (updates: Partial<SystemSettings>) => Promise<boolean>;
+  importDatasetAction: (file: File) => Promise<{ success: boolean; message: string }>;
 
   // Chat & Engine
   sessions: Session[];
@@ -65,8 +82,6 @@ interface ChatState {
   login: (credentials: DoctorLoginRequest) => Promise<boolean>;
   register: (data: DoctorRegisterRequest) => Promise<boolean>;
   logout: () => void;
-  updateProfile: (updates: DoctorUpdateRequest) => Promise<boolean>;
-  loadDemoDoctors: () => Promise<void>;
   setProfileModalOpen: (open: boolean) => void;
   setContributeModalOpen: (open: boolean) => void;
 
@@ -102,9 +117,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isAuthenticated: false,
   authLoading: false,
   authError: null,
-  demoDoctors: [],
   isProfileModalOpen: false,
   isContributeModalOpen: false,
+
+  systemSettings: {
+    enable_pdf_attachment: true,
+    enable_voice_recording: true,
+  },
+
+  adminDoctors: [],
+  isAdminLoading: false,
+  adminError: null,
 
   sessions: [],
   currentSessionId: null,
@@ -120,7 +143,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   feedbackSubmitting: null,
   isMobileSidebarOpen: false,
 
-
   setApiKey: (key) => set({ apiKey: key }),
   lockApi: () => set({ isApiLocked: true }),
 
@@ -129,6 +151,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setProfileModalOpen: (open) => set({ isProfileModalOpen: open }),
   setContributeModalOpen: (open) => set({ isContributeModalOpen: open }),
 
+  loadSystemSettings: async () => {
+    try {
+      const settings = await fetchPublicSettings();
+      set({ systemSettings: settings });
+    } catch (e) {
+      console.error('Failed to load system settings:', e);
+    }
+  },
 
   verifyBackend: async () => {
     const healthy = await checkHealth();
@@ -136,16 +166,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return healthy;
   },
 
-  loadDemoDoctors: async () => {
-    try {
-      const list = await fetchDemoDoctors();
-      set({ demoDoctors: list });
-    } catch (e) {
-      console.error('Failed to fetch demo doctors:', e);
-    }
-  },
-
   initAuth: async () => {
+    get().loadSystemSettings();
     if (typeof window === 'undefined') return;
     const token = localStorage.getItem('medai_doctor_token');
     const storedDoctor = localStorage.getItem('medai_doctor_profile');
@@ -153,7 +175,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (token && storedDoctor) {
       try {
         const doctor: DoctorProfile = JSON.parse(storedDoctor);
-        // Load doctor-scoped sessions
         const savedSessionsRaw = localStorage.getItem(getStorageKey(doctor.id));
         const savedSessions: Session[] = savedSessionsRaw ? JSON.parse(savedSessionsRaw) : [];
 
@@ -163,7 +184,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
           isAuthenticated: true,
           sessions: savedSessions,
           currentSessionId: savedSessions[0]?.id || null,
-          selectedSpecialty: doctor.specialty || null,
         });
 
         // Background profile refresh
@@ -191,7 +211,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         localStorage.setItem('medai_doctor_profile', JSON.stringify(doctor));
       }
 
-      // Load sessions specific to this doctor
       const savedSessionsRaw = typeof window !== 'undefined' ? localStorage.getItem(getStorageKey(doctor.id)) : null;
       const savedSessions: Session[] = savedSessionsRaw ? JSON.parse(savedSessionsRaw) : [];
 
@@ -203,15 +222,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         authError: null,
         sessions: savedSessions,
         currentSessionId: savedSessions[0]?.id || null,
-        selectedSpecialty: doctor.specialty || null,
       });
 
       get().loadSpecialties();
+      get().loadSystemSettings();
       return true;
     } catch (err) {
       set({
         authLoading: false,
-        authError: err instanceof Error ? err.message : 'Invalid clinical credentials.',
+        authError: err instanceof Error ? err.message : 'نام کاربری یا رمز عبور نامعتبر است.',
       });
       return false;
     }
@@ -237,7 +256,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         authError: null,
         sessions: [],
         currentSessionId: null,
-        selectedSpecialty: doctor.specialty || null,
       });
 
       get().loadSpecialties();
@@ -245,7 +263,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (err) {
       set({
         authLoading: false,
-        authError: err instanceof Error ? err.message : 'Registration failed.',
+        authError: err instanceof Error ? err.message : 'ثبت‌نام انجام نشد.',
       });
       return false;
     }
@@ -263,27 +281,122 @@ export const useChatStore = create<ChatState>((set, get) => ({
       sessions: [],
       currentSessionId: null,
       isProfileModalOpen: false,
+      adminDoctors: [],
     });
   },
 
-  updateProfile: async (updates) => {
-    const { doctorToken, currentDoctor } = get();
-    if (!doctorToken || !currentDoctor) return false;
+  // ==========================================
+  // Admin Store Actions
+  // ==========================================
 
+  loadAdminDoctors: async () => {
+    const { doctorToken, currentDoctor } = get();
+    if (!doctorToken || currentDoctor?.role !== 'admin') return;
+
+    set({ isAdminLoading: true, adminError: null });
     try {
-      const updated = await apiUpdateDoctorProfile(updates, doctorToken);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('medai_doctor_profile', JSON.stringify(updated));
-      }
-      set({ currentDoctor: updated });
+      const docs = await apiFetchAdminDoctors(doctorToken);
+      set({ adminDoctors: docs, isAdminLoading: false });
+    } catch (err) {
+      set({
+        isAdminLoading: false,
+        adminError: err instanceof Error ? err.message : 'خطا در بارگذاری فهرست کاربران.',
+      });
+    }
+  },
+
+  createDoctorByAdminAction: async (data: DoctorRegisterRequest) => {
+    const { doctorToken, currentDoctor } = get();
+    if (!doctorToken || currentDoctor?.role !== 'admin') return false;
+
+    set({ isAdminLoading: true, adminError: null });
+    try {
+      await apiCreateDoctorByAdmin(data, doctorToken);
+      await get().loadAdminDoctors();
+      set({ isAdminLoading: false });
       return true;
     } catch (err) {
       set({
-        authError: err instanceof Error ? err.message : 'Failed to update profile.',
+        isAdminLoading: false,
+        adminError: err instanceof Error ? err.message : 'خطا در ایجاد کاربر جدید.',
       });
       return false;
     }
   },
+
+  updateUserPermissionsAction: async (userId: string, updates: UserPermissionsUpdateRequest) => {
+    const { doctorToken, currentDoctor } = get();
+    if (!doctorToken || currentDoctor?.role !== 'admin') return false;
+
+    set({ isAdminLoading: true, adminError: null });
+    try {
+      await apiUpdateUserPermissionsByAdmin(userId, updates, doctorToken);
+      await get().loadAdminDoctors();
+      set({ isAdminLoading: false });
+      return true;
+    } catch (err) {
+      set({
+        isAdminLoading: false,
+        adminError: err instanceof Error ? err.message : 'خطا در به‌روزرسانی دسترسی‌های کاربر.',
+      });
+      return false;
+    }
+  },
+
+  deleteDoctorByAdminAction: async (doctorId: string) => {
+    const { doctorToken, currentDoctor } = get();
+    if (!doctorToken || currentDoctor?.role !== 'admin') return false;
+
+    try {
+      await apiDeleteDoctorByAdmin(doctorId, doctorToken);
+      await get().loadAdminDoctors();
+      return true;
+    } catch (err) {
+      set({
+        adminError: err instanceof Error ? err.message : 'خطا در حذف کاربر.',
+      });
+      return false;
+    }
+  },
+
+  updateSystemSettingsAction: async (updates: Partial<SystemSettings>) => {
+    const { doctorToken, currentDoctor } = get();
+    if (!doctorToken || currentDoctor?.role !== 'admin') return false;
+
+    try {
+      const updated = await apiUpdateAdminSettings(updates, doctorToken);
+      set({ systemSettings: updated });
+      return true;
+    } catch (err) {
+      set({
+        adminError: err instanceof Error ? err.message : 'خطا در به‌روزرسانی تنظیمات.',
+      });
+      return false;
+    }
+  },
+
+  importDatasetAction: async (file: File) => {
+    const { doctorToken, currentDoctor } = get();
+    if (!doctorToken || currentDoctor?.role !== 'admin') {
+      return { success: false, message: 'دسترسی مدیریت مورد نیاز است.' };
+    }
+
+    set({ isAdminLoading: true, adminError: null });
+    try {
+      const res = await apiImportDatasetByAdmin(file, doctorToken);
+      set({ isAdminLoading: false });
+      get().loadSpecialties();
+      return { success: true, message: res.message };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'خطا در آپلود و وکتورایز دیتاست.';
+      set({ isAdminLoading: false, adminError: msg });
+      return { success: false, message: msg };
+    }
+  },
+
+  // ==========================================
+  // Consultation Actions
+  // ==========================================
 
   loadSpecialties: async () => {
     try {
@@ -296,7 +409,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setSelectedSpecialty: (s) => set({ selectedSpecialty: s === '' ? null : s }),
 
-  createSession: (initialTitle = 'New Consultation') => {
+  createSession: (initialTitle = 'مشاوره بالینی جدید') => {
     const id = generateId();
     const currentDoc = get().currentDoctor;
     const newSession: Session = {
@@ -403,6 +516,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         feedback: null,
         detected_specialty: response.detected_specialty,
         normalized_clinical_terms: response.normalized_clinical_terms,
+        extracted_entities: response.extracted_entities,
       };
 
       const finalSessions = get().sessions.map((sess) =>
@@ -426,7 +540,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (err) {
       set({
         isLoading: false,
-        error: err instanceof Error ? err.message : 'An error occurred while connecting to the RAG engine.',
+        error: err instanceof Error ? err.message : 'خطایی در ارتباط با موتور هوش مصنوعی بالینی رخ داد.',
       });
     }
   },
@@ -489,7 +603,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (err) {
       set({
         feedbackSubmitting: null,
-        error: err instanceof Error ? err.message : 'Failed to submit clinical feedback.',
+        error: err instanceof Error ? err.message : 'ثبت بازخورد بالینی با خطا مواجه شد.',
       });
     }
   },
@@ -498,7 +612,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const state = get();
     let sessionId = state.currentSessionId;
     if (!sessionId) {
-      sessionId = get().createSession(`Consultation: ${file.name.slice(0, 24)}`);
+      sessionId = get().createSession(`پرونده: ${file.name.slice(0, 24)}`);
     }
 
     set({ isUploadingDocument: true, documentUploadError: null });
@@ -534,7 +648,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (err) {
       set({
         isUploadingDocument: false,
-        documentUploadError: err instanceof Error ? err.message : 'Failed to upload patient document.',
+        documentUploadError: err instanceof Error ? err.message : 'بارگذاری سند پزشکی با خطا مواجه شد.',
       });
       return false;
     }
@@ -602,15 +716,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
         state.doctorToken || undefined
       );
 
-      // Refresh specialties in case a new one was added
       get().loadSpecialties();
 
       return {
         success: true,
-        message: resp.message || `Case '${caseData.sample_name}' indexed successfully!`
+        message: resp.message || `مورد بالینی '${caseData.sample_name}' با موفقیت به پایگاه دانش افزوده شد!`
       };
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to contribute clinical case.';
+      const msg = err instanceof Error ? err.message : 'ثبت مورد بالینی با خطا مواجه شد.';
       return {
         success: false,
         message: msg

@@ -5,7 +5,7 @@ import {
   FeedbackResponse,
   DoctorLoginRequest,
   DoctorRegisterRequest,
-  DoctorUpdateRequest,
+  UserPermissionsUpdateRequest,
   DoctorProfile,
   DoctorPublicSummary,
   AuthResponse,
@@ -13,10 +13,10 @@ import {
   PatientDocument,
   PatientDocumentsListResponse,
   CaseContributionRequest,
-  CaseContributionResponse
+  CaseContributionResponse,
+  SystemSettings,
+  DatasetImportResponse
 } from './types';
-
-
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL !== undefined
@@ -39,7 +39,7 @@ export async function loginDoctor(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
-    throw new Error(errorData?.detail || `Login Failed (${response.status})`);
+    throw new Error(errorData?.detail || `خطا در ورود به سامانه (${response.status})`);
   }
   return response.json();
 }
@@ -58,7 +58,7 @@ export async function registerDoctor(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
-    throw new Error(errorData?.detail || `Registration Failed (${response.status})`);
+    throw new Error(errorData?.detail || `خطا در ثبت‌نام (${response.status})`);
   }
   return response.json();
 }
@@ -74,16 +74,37 @@ export async function fetchDoctorProfile(token: string): Promise<DoctorProfile> 
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch profile (${response.status})`);
+    throw new Error(`خطا در دریافت پروفایل کاربر (${response.status})`);
   }
   return response.json();
 }
 
-export async function updateDoctorProfile(
-  updates: DoctorUpdateRequest,
+// ==========================================
+// System Settings (Public & Admin)
+// ==========================================
+
+export async function fetchPublicSettings(): Promise<SystemSettings> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/settings`, {
+      method: 'GET',
+      headers: {
+        'X-API-Key': DEFAULT_API_KEY,
+      },
+    });
+    if (!response.ok) {
+      return { enable_pdf_attachment: true, enable_voice_recording: true };
+    }
+    return response.json();
+  } catch {
+    return { enable_pdf_attachment: true, enable_voice_recording: true };
+  }
+}
+
+export async function updateAdminSettings(
+  updates: Partial<SystemSettings>,
   token: string
-): Promise<DoctorProfile> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/auth/profile`, {
+): Promise<SystemSettings> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/settings`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -96,24 +117,128 @@ export async function updateDoctorProfile(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
-    throw new Error(errorData?.detail || `Profile update failed (${response.status})`);
+    throw new Error(errorData?.detail || `خطا در به‌روزرسانی تنظیمات سامانه (${response.status})`);
   }
   return response.json();
 }
 
-export async function fetchDemoDoctors(): Promise<DoctorPublicSummary[]> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/auth/demo-doctors`, {
+// ==========================================
+// Admin User & Permission Management
+// ==========================================
+
+export async function fetchAdminDoctors(token: string): Promise<DoctorProfile[]> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/users`, {
     method: 'GET',
     headers: {
+      'Authorization': `Bearer ${token}`,
+      'X-Doctor-Token': token,
       'X-API-Key': DEFAULT_API_KEY,
     },
   });
 
   if (!response.ok) {
-    return [];
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.detail || `خطا در دریافت لیست کاربران (${response.status})`);
   }
   return response.json();
 }
+
+export async function createDoctorByAdmin(
+  userData: DoctorRegisterRequest,
+  token: string
+): Promise<DoctorProfile> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/users`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'X-Doctor-Token': token,
+      'X-API-Key': DEFAULT_API_KEY,
+    },
+    body: JSON.stringify(userData),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.detail || `خطا در ایجاد حساب کاربر (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function updateUserPermissionsByAdmin(
+  userId: string,
+  updates: UserPermissionsUpdateRequest,
+  token: string
+): Promise<DoctorProfile> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/users/${userId}/permissions`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'X-Doctor-Token': token,
+      'X-API-Key': DEFAULT_API_KEY,
+    },
+    body: JSON.stringify(updates),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.detail || `خطا در به‌روزرسانی دسترسی‌های کاربر (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function deleteDoctorByAdmin(
+  doctorId: string,
+  token: string
+): Promise<boolean> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/users/${doctorId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'X-Doctor-Token': token,
+      'X-API-Key': DEFAULT_API_KEY,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.detail || `خطا در حذف کاربر (${response.status})`);
+  }
+  return true;
+}
+
+// ==========================================
+// Admin Dataset Ingestion
+// ==========================================
+
+export async function importDatasetByAdmin(
+  file: File,
+  token: string
+): Promise<DatasetImportResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/dataset/import`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'X-Doctor-Token': token,
+      'X-API-Key': DEFAULT_API_KEY,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.detail || `خطا در بارگذاری و وکتورایز کردن دیتاست (${response.status})`);
+  }
+  return response.json();
+}
+
+// ==========================================
+// Clinical Chat & Search
+// ==========================================
 
 export async function sendChatMessage(
   request: ChatRequest,
@@ -136,7 +261,7 @@ export async function sendChatMessage(
   });
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`API Error ${response.status}: ${errorText}`);
+    throw new Error(`خطای پردازش هوش مصنوعی (${response.status}): ${errorText}`);
   }
   return response.json();
 }

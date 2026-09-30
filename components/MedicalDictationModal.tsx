@@ -14,7 +14,6 @@ import {
   X,
   AlertCircle,
   FileText,
-  Volume2,
   Globe
 } from 'lucide-react';
 import { transcribeMedicalAudio } from '@/lib/api';
@@ -26,7 +25,6 @@ interface MedicalDictationModalProps {
   onInsertText: (text: string) => void;
   onSendDirect?: (text: string) => void;
 }
-
 
 export default function MedicalDictationModal({
   isOpen,
@@ -126,7 +124,7 @@ export default function MedicalDictationModal({
       startLiveSpeechStreaming();
     } catch (err) {
       console.error('Microphone access denied:', err);
-      setErrorMessage('Microphone access denied. Please allow microphone permissions in your browser.');
+      setErrorMessage('دسترسی به میکروفون داده نشد. لطفاً در مرورگر دسترسی به میکروفون را فعال نمایید.');
     }
   };
 
@@ -193,7 +191,7 @@ export default function MedicalDictationModal({
       console.error('Whisper transcription error:', err);
       if (!transcript) {
         setErrorMessage(
-          err instanceof Error ? err.message : 'Failed to transcribe audio. Please check your connection.'
+          err instanceof Error ? err.message : 'خطا در تبدیل صوت به متن. لطفاً اتصال اینترنت را بررسی کنید.'
         );
       }
     } finally {
@@ -213,52 +211,56 @@ export default function MedicalDictationModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm select-none">
+    <div id="dictation-modal-backdrop" className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm select-none">
       <motion.div
+        id="dictation-modal-container"
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
         className="glass w-full max-w-xl rounded-3xl shadow-2xl border border-white/60 bg-white overflow-hidden flex flex-col max-h-[92vh]"
       >
         {/* Header Ribbon */}
-        <div className="bg-gradient-to-r from-blue-700 via-cyan-700 to-blue-800 px-5 py-4 text-white flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
-              <Mic className="w-5 h-5 text-white" />
+        <div id="dictation-header-ribbon" className="bg-gradient-to-r from-blue-700 via-cyan-700 to-blue-800 px-5 py-4 text-white flex items-center justify-between shadow-sm">
+          <div id="dictation-header-info" className="flex items-center gap-3">
+            <div id="dictation-header-icon-box" className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
+              <Mic id="dictation-header-mic-icon" className="w-5 h-5 text-white" />
             </div>
-            <div>
-              <h2 className="text-sm sm:text-base font-bold flex items-center gap-1.5">
+            <div id="dictation-header-titles">
+              <h2 id="dictation-modal-title" className="text-sm sm:text-base font-bold flex items-center gap-1.5">
                 دیکته صوتی هوشمند (Voice Dictation)
-                <span className="text-[9px] px-2 py-0.5 rounded-full bg-cyan-500/30 text-cyan-100 border border-cyan-400/40 font-mono">
+                <span id="dictation-whisper-badge" className="text-[9px] px-2 py-0.5 rounded-full bg-cyan-500/30 text-cyan-100 border border-cyan-400/40 font-mono">
                   Whisper AI
                 </span>
               </h2>
-              <p className="text-[11px] text-blue-100 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-amber-300" />
+              <p id="dictation-modal-subtitle" className="text-[11px] text-blue-100 flex items-center gap-1">
+                <Sparkles id="dictation-sparkle-icon" className="w-3 h-3 text-amber-300" />
                 پشتیبانی دقیق از زبان فارسی و کلیه مفاهیم عمومی، بالینی و تخصصی
               </p>
             </div>
           </div>
 
           <button
+            id="dictation-close-btn"
+            type="button"
             onClick={onClose}
             className="p-1.5 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X id="dictation-close-icon" className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
+        <div id="dictation-modal-body" className="p-4 sm:p-6 overflow-y-auto space-y-4">
           {/* Language Switcher Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
-            <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
-              <Languages className="w-3.5 h-3.5 text-blue-600" />
+          <div id="dictation-language-bar" className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
+            <span id="dictation-language-label" className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
+              <Languages id="dictation-language-icon" className="w-3.5 h-3.5 text-blue-600" />
               زبان گفتار (Language):
             </span>
 
-            <div className="flex bg-slate-200/80 p-0.5 rounded-xl text-xs font-semibold">
+            <div id="dictation-language-btn-group" className="flex bg-slate-200/80 p-0.5 rounded-xl text-xs font-semibold">
               <button
+                id="dictation-lang-fa-btn"
                 type="button"
                 onClick={() => setLanguage('fa')}
                 className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
@@ -267,10 +269,11 @@ export default function MedicalDictationModal({
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>🇮🇷</span>
-                فارسی (Persian)
+                <span id="dictation-lang-fa-flag">🇮🇷</span>
+                <span id="dictation-lang-fa-text">فارسی (Persian)</span>
               </button>
               <button
+                id="dictation-lang-auto-btn"
                 type="button"
                 onClick={() => setLanguage('auto')}
                 className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
@@ -279,10 +282,11 @@ export default function MedicalDictationModal({
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <Globe className="w-3 h-3 text-cyan-600" />
-                تشخیص خودکار
+                <Globe id="dictation-lang-auto-icon" className="w-3 h-3 text-cyan-600" />
+                <span id="dictation-lang-auto-text">تشخیص خودکار</span>
               </button>
               <button
+                id="dictation-lang-en-btn"
                 type="button"
                 onClick={() => setLanguage('en')}
                 className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
@@ -291,23 +295,24 @@ export default function MedicalDictationModal({
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>🇺🇸</span>
-                English
+                <span id="dictation-lang-en-flag">🇺🇸</span>
+                <span id="dictation-lang-en-text">English</span>
               </button>
             </div>
           </div>
 
           {/* Recording Canvas & Wave Visualizer */}
-          <div className="flex flex-col items-center justify-center p-6 bg-slate-900 rounded-2xl text-white relative overflow-hidden shadow-inner">
+          <div id="dictation-recording-canvas" className="flex flex-col items-center justify-center p-6 bg-slate-900 rounded-2xl text-white relative overflow-hidden shadow-inner">
             {/* Ambient recording glow */}
             {isRecording && (
-              <div className="absolute inset-0 bg-red-600/10 animate-pulse pointer-events-none" />
+              <div id="dictation-ambient-glow" className="absolute inset-0 bg-red-600/10 animate-pulse pointer-events-none" />
             )}
 
             {/* Central Mic Button */}
-            <div className="relative mb-3">
+            <div id="dictation-central-mic-wrapper" className="relative mb-3">
               {isRecording && (
                 <motion.div
+                  id="dictation-recording-pulse-ring"
                   initial={{ scale: 1, opacity: 0.8 }}
                   animate={{ scale: [1, 1.4, 1], opacity: [0.6, 0.1, 0.6] }}
                   transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
@@ -316,6 +321,7 @@ export default function MedicalDictationModal({
               )}
 
               <button
+                id="dictation-toggle-recording-btn"
                 type="button"
                 onClick={isRecording ? stopRecording : startRecording}
                 disabled={isProcessing}
@@ -328,43 +334,43 @@ export default function MedicalDictationModal({
                 }`}
               >
                 {isProcessing ? (
-                  <Loader2 className="w-7 h-7 animate-spin text-cyan-300" />
+                  <Loader2 id="dictation-processing-spinner" className="w-7 h-7 animate-spin text-cyan-300" />
                 ) : isRecording ? (
-                  <Square className="w-6 h-6 fill-white" />
+                  <Square id="dictation-stop-square" className="w-6 h-6 fill-white" />
                 ) : (
-                  <Mic className="w-7 h-7 text-white" />
+                  <Mic id="dictation-start-mic-icon" className="w-7 h-7 text-white" />
                 )}
               </button>
             </div>
 
             {/* Recording Timer & Status */}
-            <div className="text-center">
+            <div id="dictation-recording-status-box" className="text-center">
               {isRecording ? (
-                <div className="space-y-1">
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-                    <span className="text-base font-mono font-bold tracking-wider text-red-400">
+                <div id="dictation-recording-active-state" className="space-y-1">
+                  <div id="dictation-timer-row" className="flex items-center justify-center gap-2">
+                    <span id="dictation-timer-dot" className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+                    <span id="dictation-timer-text" className="text-base font-mono font-bold tracking-wider text-red-400">
                       {formatTime(recordingDuration)}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-200 font-medium">
+                  <p id="dictation-listening-hint" className="text-xs text-slate-200 font-medium">
                     در حال شنیدن گفتار شما... (برای اتمام ضبط کلیک کنید)
                   </p>
                 </div>
               ) : isProcessing ? (
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-cyan-400 flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                <div id="dictation-processing-state" className="space-y-1">
+                  <p id="dictation-processing-title" className="text-sm font-semibold text-cyan-400 flex items-center justify-center gap-2">
+                    <Loader2 id="dictation-proc-icon" className="w-4 h-4 animate-spin" />
                     تبدیل صوت به متن با هوش مصنوعی Whisper...
                   </p>
-                  <p className="text-[11px] text-slate-400">Transcribing natural speech...</p>
+                  <p id="dictation-processing-subtitle" className="text-[11px] text-slate-400">Transcribing natural speech...</p>
                 </div>
               ) : (
-                <div>
-                  <p className="text-sm font-semibold text-slate-200">
+                <div id="dictation-idle-state">
+                  <p id="dictation-idle-title" className="text-sm font-semibold text-slate-200">
                     برای شروع دیکته صوتی دکمه میکروفون را فشار دهید
                   </p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p id="dictation-idle-subtitle" className="text-[11px] text-slate-400 mt-0.5">
                     می‌توانید به زبان فارسی روان درباره هر موضوع بالینی، تشخیصی، سوال یا شرح حال صحبت کنید
                   </p>
                 </div>
@@ -376,42 +382,45 @@ export default function MedicalDictationModal({
           <AnimatePresence>
             {errorMessage && (
               <motion.div
+                id="dictation-error-banner"
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 className="p-3 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-2.5 text-red-700 text-xs font-medium"
               >
-                <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-600" />
-                <span>{errorMessage}</span>
+                <AlertCircle id="dictation-error-icon" className="w-4 h-4 flex-shrink-0 text-red-600" />
+                <span id="dictation-error-text">{errorMessage}</span>
               </motion.div>
             )}
           </AnimatePresence>
 
           {/* Editable Live Transcript Box */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5 px-1">
-              <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-blue-600" />
+          <div id="dictation-transcript-section">
+            <div id="dictation-transcript-header" className="flex items-center justify-between mb-1.5 px-1">
+              <span id="dictation-transcript-label" className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <FileText id="dictation-transcript-icon" className="w-3.5 h-3.5 text-blue-600" />
                 متن شناسایی‌شده (Transcript):
                 {detectedLang && (
-                  <span className="text-[10px] px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded font-mono">
+                  <span id="dictation-detected-lang-badge" className="text-[10px] px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded font-mono">
                     {detectedLang.toUpperCase()}
                   </span>
                 )}
               </span>
               {transcript && (
                 <button
+                  id="dictation-clear-transcript-btn"
                   type="button"
                   onClick={() => setTranscript('')}
                   className="text-[10px] text-slate-400 hover:text-red-500 flex items-center gap-1 cursor-pointer"
                 >
-                  <RotateCcw className="w-3 h-3" />
-                  پاک کردن
+                  <RotateCcw id="dictation-clear-transcript-icon" className="w-3 h-3" />
+                  <span id="dictation-clear-transcript-text">پاک کردن</span>
                 </button>
               )}
             </div>
 
             <textarea
+              id="dictation-transcript-textarea"
               rows={4}
               dir={isPersianContent ? 'rtl' : 'ltr'}
               value={transcript}
@@ -424,8 +433,9 @@ export default function MedicalDictationModal({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-2 pt-1">
+          <div id="dictation-actions-row" className="flex items-center gap-2 pt-1">
             <button
+              id="dictation-insert-text-btn"
               type="button"
               onClick={() => {
                 if (transcript.trim()) {
@@ -436,12 +446,13 @@ export default function MedicalDictationModal({
               disabled={!transcript.trim() || isProcessing || isRecording}
               className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
-              <Check className="w-4 h-4 text-emerald-600" />
-              درج در کادر پیام (Insert)
+              <Check id="dictation-insert-check-icon" className="w-4 h-4 text-emerald-600" />
+              <span id="dictation-insert-text-label">درج در کادر پیام (Insert)</span>
             </button>
 
             {onSendDirect && (
               <button
+                id="dictation-send-direct-btn"
                 type="button"
                 onClick={() => {
                   if (transcript.trim() && onSendDirect) {
@@ -452,12 +463,11 @@ export default function MedicalDictationModal({
                 disabled={!transcript.trim() || isProcessing || isRecording}
                 className="flex-1 py-2.5 px-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
-                <Send className="w-4 h-4" />
-                ارسال مستقیم سوال (Send)
+                <Send id="dictation-send-direct-icon" className="w-4 h-4" />
+                <span id="dictation-send-direct-label">ارسال مستقیم سوال (Send)</span>
               </button>
             )}
           </div>
-
         </div>
       </motion.div>
     </div>

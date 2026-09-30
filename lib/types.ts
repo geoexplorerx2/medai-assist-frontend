@@ -1,24 +1,18 @@
 export interface DoctorProfile {
   id: string;
   username: string;
-  full_name: string;
-  specialty?: string;
-  license_number?: string;
-  email?: string;
-  department?: string;
-  avatar_url?: string;
-  bio?: string;
+  role?: 'admin' | 'doctor' | string;
+  can_upload_pdf?: boolean;
+  can_record_voice?: boolean;
+  can_contribute_case?: boolean;
+  is_active?: boolean;
   created_at?: string;
 }
 
 export interface DoctorPublicSummary {
   id: string;
   username: string;
-  full_name: string;
-  specialty?: string;
-  department?: string;
-  license_number?: string;
-  avatar_url?: string;
+  role?: 'admin' | 'doctor' | string;
 }
 
 export interface DoctorLoginRequest {
@@ -29,21 +23,32 @@ export interface DoctorLoginRequest {
 export interface DoctorRegisterRequest {
   username: string;
   password: string;
-  full_name: string;
-  specialty?: string;
-  license_number?: string;
-  email?: string;
-  department?: string;
-  bio?: string;
+  repeat_password?: string;
+  role?: string;
+  can_upload_pdf?: boolean;
+  can_record_voice?: boolean;
+  can_contribute_case?: boolean;
 }
 
-export interface DoctorUpdateRequest {
-  full_name?: string;
-  specialty?: string;
-  license_number?: string;
-  email?: string;
-  department?: string;
-  bio?: string;
+export interface UserPermissionsUpdateRequest {
+  role?: string;
+  can_upload_pdf?: boolean;
+  can_record_voice?: boolean;
+  can_contribute_case?: boolean;
+  is_active?: boolean;
+  password?: string;
+}
+
+export interface SystemSettings {
+  enable_pdf_attachment: boolean;
+  enable_voice_recording: boolean;
+}
+
+export interface DatasetImportResponse {
+  status: string;
+  message: string;
+  records_count: number;
+  chunks_indexed: number;
 }
 
 export interface AuthResponse {
@@ -73,6 +78,7 @@ export interface ChatResponse {
   query: string;
   detected_specialty?: string | null;
   normalized_clinical_terms?: string[];
+  extracted_entities?: string[];
 }
 
 export interface Message {
@@ -85,6 +91,7 @@ export interface Message {
   correction?: string;
   detected_specialty?: string | null;
   normalized_clinical_terms?: string[];
+  extracted_entities?: string[];
 }
 
 export interface PatientDocument {

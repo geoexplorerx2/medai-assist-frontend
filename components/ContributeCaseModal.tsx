@@ -1,49 +1,44 @@
 'use client';
 
-import { useState, FormEvent, useEffect } from 'react';
+import { useState, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChatStore } from '@/store/chatStore';
 import {
   X,
   PlusCircle,
-  Stethoscope,
-  Sparkles,
   Loader2,
   CheckCircle2,
   AlertCircle,
   FileText,
-  Mic,
-  Tag
+  Mic
 } from 'lucide-react';
 import MedicalDictationModal from './MedicalDictationModal';
 
-const SOAP_TEMPLATE = `SUBJECTIVE:, [Describe patient age, gender, chief complaint, symptom duration, past medical history, and specific triggers]
+const SOAP_TEMPLATE = `SUBJECTIVE:, [سن، جنسیت، شکایت اصلی بیمار، مدت زمان علائم، سوابق قبلی]
 
-CURRENT MEDICATIONS:, [Document current dosages, frequency]
+CURRENT MEDICATIONS:, [داروهای مصرفی فعلی با دوز و تکرار]
 
-ALLERGIES:, [Document drug allergies or 'No known drug allergies']
+ALLERGIES:, [حساسیت‌های دارویی یا No known drug allergies]
 
-OBJECTIVE:, Vitals: BP [BP] mmHg, HR [HR] bpm, Temp [Temp] C, SpO2 [SpO2]%.
-Physical Exam & Diagnostic Tests: [Document pertinent physical findings, lab results, ECG, or imaging]
+OBJECTIVE:, علائم حیاتی: فشار خون [BP]، ضربان [HR]، تنفس [RR]، اشباع اکسیژن [SpO2]%.
+معاینات بالینی و یافته‌های پاراکلینیک: [یافته‌های فیزیکی، ECG، آزمایشات و تصویربرداری]
 
-ASSESSMENT:, 1. [Primary Diagnosis / Differential]
-2. [Secondary Condition / Comorbidity]
+ASSESSMENT:, 1. [تشخیص اولیه بالینی]
+2. [تشخیص‌های افتراقی یا بیماری‌های زمینه‌ای]
 
-PLAN:, 1. [Specific medication names, dosages, route, and duration]
-2. [Diagnostic workup / monitoring orders]
-3. [Lifestyle advice / Patient education]
-4. [Red-flag warning signs and follow-up timeline]`;
+PLAN:, 1. [نام داروها، دوز دقیق، نحوه مصرف و طول دوره درمان]
+2. [اقدامات پاراکلینیک، پایش و دستورات پیگیری]
+3. [آموزش به بیمار و علائم هشداردهنده Red Flags]`;
 
 export default function ContributeCaseModal() {
   const {
     isContributeModalOpen,
     setContributeModalOpen,
-    currentDoctor,
     availableSpecialties,
     contributeCase,
   } = useChatStore();
 
-  const [specialty, setSpecialty] = useState('Cardiology');
+  const [specialty, setSpecialty] = useState('Cardiovascular / Pulmonary');
   const [customSpecialty, setCustomSpecialty] = useState('');
   const [sampleName, setSampleName] = useState('');
   const [description, setDescription] = useState('');
@@ -53,12 +48,6 @@ export default function ContributeCaseModal() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isDictationOpen, setIsDictationOpen] = useState(false);
-
-  useEffect(() => {
-    if (currentDoctor?.specialty && currentDoctor.specialty !== 'General Medicine') {
-      setSpecialty(currentDoctor.specialty);
-    }
-  }, [currentDoctor]);
 
   if (!isContributeModalOpen) return null;
 
@@ -79,15 +68,15 @@ export default function ContributeCaseModal() {
     const finalSpecialty = specialty === 'Custom' ? customSpecialty.trim() : specialty.trim();
 
     if (!finalSpecialty) {
-      setStatusMessage({ type: 'error', text: 'Please specify a clinical specialty.' });
+      setStatusMessage({ type: 'error', text: 'لطفاً تخصص پزشکی را مشخص کنید.' });
       return;
     }
     if (!sampleName.trim()) {
-      setStatusMessage({ type: 'error', text: 'Please enter a case or condition title.' });
+      setStatusMessage({ type: 'error', text: 'لطفاً عنوان مورد بالینی را وارد کنید.' });
       return;
     }
     if (!transcription.trim()) {
-      setStatusMessage({ type: 'error', text: 'Please provide clinical SOAP notes / documentation.' });
+      setStatusMessage({ type: 'error', text: 'لطفاً مستندات و شرح‌حال بالینی را وارد کنید.' });
       return;
     }
 
@@ -106,15 +95,14 @@ export default function ContributeCaseModal() {
 
     if (result.success) {
       setStatusMessage({ type: 'success', text: result.message });
+      setSampleName('');
+      setDescription('');
+      setTranscription('');
+      setKeywords('');
       setTimeout(() => {
-        // Reset and close after brief success display
-        setSampleName('');
-        setDescription('');
-        setTranscription('');
-        setKeywords('');
         setStatusMessage(null);
         setContributeModalOpen(false);
-      }, 1500);
+      }, 2500);
     } else {
       setStatusMessage({ type: 'error', text: result.message });
     }
@@ -122,219 +110,218 @@ export default function ContributeCaseModal() {
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+      <div id="contribute-case-modal-backdrop" dir="rtl" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
         <motion.div
+          id="contribute-case-modal-container"
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden my-auto"
+          className="glass w-full max-w-2xl rounded-3xl shadow-2xl border border-white/60 overflow-hidden bg-white relative z-10 flex flex-col max-h-[90vh]"
         >
-          {/* Header */}
-          <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-cyan-800 p-4 sm:p-5 text-white flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-xs flex items-center justify-center border border-white/20">
-                <PlusCircle className="w-5 h-5 text-cyan-300" />
+          {/* Header Ribbon */}
+          <div id="contribute-case-header-ribbon" className="bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-700 px-6 py-5 text-white flex items-center justify-between">
+            <div id="contribute-case-header-info" className="flex items-center gap-3">
+              <div id="contribute-case-header-icon-box" className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-teal-100 border border-white/30 shadow-inner">
+                <PlusCircle id="contribute-case-header-plus" className="w-6 h-6" />
               </div>
-              <div>
-                <h3 className="text-base sm:text-lg font-bold">Contribute Clinical Case & Symptoms</h3>
-                <p className="text-xs text-cyan-100 flex items-center gap-1.5">
-                  <Stethoscope className="w-3.5 h-3.5" />
-                  <span>
-                    Physician: {currentDoctor?.full_name ? currentDoctor.full_name : 'Attending Clinician'}
-                  </span>
+              <div id="contribute-case-header-titles">
+                <h2 id="contribute-case-title" className="text-base sm:text-lg font-bold">
+                  مشارکت در ثبت مورد بالینی جدید
+                </h2>
+                <p id="contribute-case-subtitle" className="text-xs text-teal-100">
+                  افزودن بلادرنگ پرونده به پایگاه دانش RAG و وکتورایز خودکار
                 </p>
               </div>
             </div>
 
             <button
+              id="contribute-case-close-btn"
+              type="button"
               onClick={() => setContributeModalOpen(false)}
-              className="p-1.5 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              className="p-1.5 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X id="contribute-case-close-icon" className="w-5 h-5" />
             </button>
           </div>
 
           {/* Form Body */}
-          <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 max-h-[78vh] overflow-y-auto">
+          <div id="contribute-case-form-body" className="p-6 overflow-y-auto flex-1">
             {/* Status Alert */}
             <AnimatePresence>
               {statusMessage && (
                 <motion.div
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  className={`p-3 rounded-xl flex items-center gap-2.5 text-xs font-medium ${
+                  id="contribute-case-status-banner"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className={`mb-4 p-3 rounded-xl text-xs flex items-center gap-2 ${
                     statusMessage.type === 'success'
-                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                      : 'bg-rose-50 text-rose-800 border border-rose-200'
+                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                      : 'bg-red-50 border border-red-200 text-red-800'
                   }`}
                 >
                   {statusMessage.type === 'success' ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <CheckCircle2 id="contribute-case-status-check-icon" className="w-4 h-4 shrink-0 text-emerald-600" />
                   ) : (
-                    <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                    <AlertCircle id="contribute-case-status-alert-icon" className="w-4 h-4 shrink-0 text-red-600" />
                   )}
-                  <span>{statusMessage.text}</span>
+                  <span id="contribute-case-status-text">{statusMessage.text}</span>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Specialty & Title */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {/* Specialty */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Clinical Specialty <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  value={specialty}
-                  onChange={(e) => setSpecialty(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium"
-                >
-                  {availableSpecialties.map((spec) => (
-                    <option key={spec} value={spec}>
-                      {spec}
-                    </option>
-                  ))}
-                  <option value="Cardiology">Cardiology</option>
-                  <option value="Endocrinology">Endocrinology</option>
-                  <option value="Neurology">Neurology</option>
-                  <option value="Gastroenterology">Gastroenterology</option>
-                  <option value="Pulmonology">Pulmonology</option>
-                  <option value="Infectious Disease">Infectious Disease</option>
-                  <option value="Nephrology">Nephrology</option>
-                  <option value="General Medicine">General Medicine</option>
-                  <option value="Custom">+ Other / Custom Specialty</option>
-                </select>
+            <form id="contribute-case-form" onSubmit={handleSubmit} className="space-y-4 text-xs">
+              <div id="contribute-case-grid-specialty-sample" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div id="contribute-case-specialty-field">
+                  <label id="contribute-case-specialty-label" htmlFor="contribute-case-specialty-select" className="block font-semibold text-slate-700 mb-1">
+                    تخصص پزشکی *
+                  </label>
+                  <select
+                    id="contribute-case-specialty-select"
+                    value={specialty}
+                    onChange={(e) => setSpecialty(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-800"
+                  >
+                    {availableSpecialties.map((s, idx) => (
+                      <option id={`contribute-spec-opt-${idx}`} key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                    <option id="contribute-spec-opt-custom" value="Custom">سایر (تعریف تخصص جدید)</option>
+                  </select>
+                </div>
 
                 {specialty === 'Custom' && (
-                  <input
-                    type="text"
-                    value={customSpecialty}
-                    onChange={(e) => setCustomSpecialty(e.target.value)}
-                    placeholder="Enter specialty name..."
-                    className="mt-1.5 w-full px-3 py-1.5 text-xs rounded-lg border border-blue-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
+                  <div id="contribute-case-custom-specialty-field">
+                    <label id="contribute-case-custom-specialty-label" htmlFor="contribute-case-custom-specialty-input" className="block font-semibold text-slate-700 mb-1">
+                      نام تخصص جدید *
+                    </label>
+                    <input
+                      id="contribute-case-custom-specialty-input"
+                      type="text"
+                      required
+                      value={customSpecialty}
+                      onChange={(e) => setCustomSpecialty(e.target.value)}
+                      placeholder="مثال: Endocrinology"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-800"
+                    />
+                  </div>
                 )}
-              </div>
 
-              {/* Title / Condition */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Case / Condition Name <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={sampleName}
-                  onChange={(e) => setSampleName(e.target.value)}
-                  placeholder="e.g. Acute Pericarditis Management"
-                  required
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium"
-                />
-              </div>
-            </div>
-
-            {/* Brief Description */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Short Case Summary / Presentation
-              </label>
-              <input
-                type="text"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="e.g. 34-year-old male presenting with sharp pleuritic chest pain and ECG ST elevation."
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-              />
-            </div>
-
-            {/* Clinical SOAP Notes */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-slate-700">
-                  Clinical SOAP Documentation <span className="text-rose-500">*</span>
-                </label>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleInsertTemplate}
-                    className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md border border-blue-200 transition-colors"
-                  >
-                    <FileText className="w-3 h-3" />
-                    <span>Insert SOAP Template</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsDictationOpen(true)}
-                    className="inline-flex items-center gap-1 text-[10px] font-medium text-cyan-700 bg-cyan-50 hover:bg-cyan-100 px-2 py-0.5 rounded-md border border-cyan-200 transition-colors"
-                  >
-                    <Mic className="w-3 h-3" />
-                    <span>Dictate Notes (Voice)</span>
-                  </button>
+                <div id="contribute-case-samplename-field">
+                  <label id="contribute-case-samplename-label" htmlFor="contribute-case-samplename-input" className="block font-semibold text-slate-700 mb-1">
+                    عنوان پرونده / بیماری *
+                  </label>
+                  <input
+                    id="contribute-case-samplename-input"
+                    type="text"
+                    required
+                    value={sampleName}
+                    onChange={(e) => setSampleName(e.target.value)}
+                    placeholder="مثال: Acute Unstable Angina Evaluation"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-800"
+                  />
                 </div>
               </div>
 
-              <textarea
-                value={transcription}
-                onChange={(e) => setTranscription(e.target.value)}
-                rows={9}
-                required
-                placeholder="SUBJECTIVE: Patient presents with...&#10;OBJECTIVE: Vitals, Labs, Physical Exam...&#10;ASSESSMENT: Diagnosis...&#10;PLAN: Medications, Dosages, Management..."
-                className="w-full p-3 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-slate-800 leading-relaxed resize-y"
-              />
-            </div>
+              <div id="contribute-case-description-field">
+                <label id="contribute-case-description-label" htmlFor="contribute-case-description-input" className="block font-semibold text-slate-700 mb-1">
+                  خلاصه یا توصیف کوتاه پرونده
+                </label>
+                <input
+                  id="contribute-case-description-input"
+                  type="text"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="خلاصه ۱ خطی از وضعیت بیمار و مداخله انجام‌شده"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-800"
+                />
+              </div>
 
-            {/* Keywords */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                <Tag className="w-3 h-3 text-slate-400" />
-                <span>Search Keywords & Drug Synonyms (optional)</span>
-              </label>
-              <input
-                type="text"
-                value={keywords}
-                onChange={(e) => setKeywords(e.target.value)}
-                placeholder="e.g. pericarditis, chest pain, colchicine, ibuprofen, st elevation"
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-              />
-            </div>
+              <div id="contribute-case-transcription-field">
+                <div id="contribute-case-transcription-header" className="flex items-center justify-between mb-1">
+                  <label id="contribute-case-transcription-label" htmlFor="contribute-case-transcription-textarea" className="font-semibold text-slate-700">
+                    متن و مستندات بالینی (SOAP Notes) *
+                  </label>
+                  <div id="contribute-case-transcription-actions" className="flex items-center gap-2">
+                    <button
+                      id="contribute-case-insert-soap-btn"
+                      type="button"
+                      onClick={handleInsertTemplate}
+                      className="text-[11px] text-teal-600 hover:text-teal-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <FileText id="contribute-case-soap-icon" className="w-3 h-3" />
+                      <span id="contribute-case-soap-text">درج قالب SOAP</span>
+                    </button>
+                    <button
+                      id="contribute-case-dictate-btn"
+                      type="button"
+                      onClick={() => setIsDictationOpen(true)}
+                      className="text-[11px] text-cyan-600 hover:text-cyan-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Mic id="contribute-case-dictate-icon" className="w-3 h-3" />
+                      <span id="contribute-case-dictate-text">دیکته صوتی</span>
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  id="contribute-case-transcription-textarea"
+                  rows={8}
+                  required
+                  value={transcription}
+                  onChange={(e) => setTranscription(e.target.value)}
+                  placeholder="شرح‌حال، معاینات، آزمایشات، تشخیص و پلن درمانی را وارد کنید..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono resize-none text-slate-800"
+                />
+              </div>
 
-            {/* Actions */}
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setContributeModalOpen(false)}
-                disabled={isSubmitting}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-              >
-                Cancel
-              </button>
+              <div id="contribute-case-keywords-field">
+                <label id="contribute-case-keywords-label" htmlFor="contribute-case-keywords-input" className="block font-semibold text-slate-700 mb-1">
+                  کلمات کلیدی بالینی (با کاما جدا کنید)
+                </label>
+                <input
+                  id="contribute-case-keywords-input"
+                  type="text"
+                  value={keywords}
+                  onChange={(e) => setKeywords(e.target.value)}
+                  placeholder="angina, ecg, troponin, nitroglycerin, heparin"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-800 dir-ltr text-left"
+                />
+              </div>
 
-              <button
-                type="submit"
-                disabled={isSubmitting || !sampleName.trim() || !transcription.trim()}
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50 text-white px-5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Vectorizing & Indexing...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    <span>Save & Index to Knowledge Base</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
+              <div id="contribute-case-submit-actions" className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  id="contribute-case-cancel-btn"
+                  type="button"
+                  onClick={() => setContributeModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-colors cursor-pointer"
+                >
+                  انصراف
+                </button>
+                <button
+                  id="contribute-case-submit-btn"
+                  type="submit"
+                  disabled={isSubmitting || !sampleName.trim() || !transcription.trim()}
+                  className="px-5 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-bold rounded-xl shadow-sm transition-all disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 id="contribute-case-submit-spinner" className="w-4 h-4 animate-spin" />
+                      <span id="contribute-case-submitting-text">در حال ایندکس و وکتورایز...</span>
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle id="contribute-case-submit-plus-icon" className="w-4 h-4" />
+                      <span id="contribute-case-submit-label">ثبت در پایگاه دانش</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </motion.div>
       </div>
 
-      {/* Voice Dictation Modal Integration */}
       <MedicalDictationModal
         isOpen={isDictationOpen}
         onClose={() => setIsDictationOpen(false)}
