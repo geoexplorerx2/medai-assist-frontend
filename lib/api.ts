@@ -8,8 +8,15 @@ import {
   DoctorUpdateRequest,
   DoctorProfile,
   DoctorPublicSummary,
-  AuthResponse
+  AuthResponse,
+  DictationResponse,
+  PatientDocument,
+  PatientDocumentsListResponse,
+  CaseContributionRequest,
+  CaseContributionResponse
 } from './types';
+
+
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL !== undefined
@@ -181,6 +188,144 @@ export async function submitDoctorFeedback(
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Feedback Error ${response.status}: ${errorText}`);
+  }
+  return response.json();
+}
+
+export async function transcribeMedicalAudio(
+  audioBlob: Blob,
+  language: string = 'fa',
+  refineMedical: boolean = false,
+  apiKey?: string,
+  doctorToken?: string
+): Promise<DictationResponse> {
+  const formData = new FormData();
+  const filename = audioBlob.type.includes('wav') ? 'dictation.wav' : 'dictation.webm';
+  formData.append('file', audioBlob, filename);
+  formData.append('language', language);
+  formData.append('refine_medical', refineMedical ? 'true' : 'false');
+
+  const headers: Record<string, string> = {
+    'X-API-Key': apiKey || DEFAULT_API_KEY,
+  };
+  if (doctorToken) {
+    headers['Authorization'] = `Bearer ${doctorToken}`;
+    headers['X-Doctor-Token'] = doctorToken;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/dictation/transcribe`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.detail || `Dictation Error (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function uploadPatientDocument(
+  file: File,
+  sessionId: string,
+  apiKey?: string,
+  doctorToken?: string
+): Promise<PatientDocument> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('session_id', sessionId);
+
+  const headers: Record<string, string> = {
+    'X-API-Key': apiKey || DEFAULT_API_KEY,
+  };
+  if (doctorToken) {
+    headers['Authorization'] = `Bearer ${doctorToken}`;
+    headers['X-Doctor-Token'] = doctorToken;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/documents/upload`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.detail || `Document Upload Error (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function fetchSessionDocuments(
+  sessionId: string,
+  apiKey?: string,
+  doctorToken?: string
+): Promise<PatientDocument[]> {
+  const headers: Record<string, string> = {
+    'X-API-Key': apiKey || DEFAULT_API_KEY,
+  };
+  if (doctorToken) {
+    headers['Authorization'] = `Bearer ${doctorToken}`;
+    headers['X-Doctor-Token'] = doctorToken;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/documents/${sessionId}`, {
+    method: 'GET',
+    headers,
+  });
+
+  if (!response.ok) {
+    return [];
+  }
+  const data: PatientDocumentsListResponse = await response.json();
+  return data.documents || [];
+}
+
+export async function deleteSessionDocument(
+  sessionId: string,
+  docId: string,
+  apiKey?: string,
+  doctorToken?: string
+): Promise<boolean> {
+  const headers: Record<string, string> = {
+    'X-API-Key': apiKey || DEFAULT_API_KEY,
+  };
+  if (doctorToken) {
+    headers['Authorization'] = `Bearer ${doctorToken}`;
+    headers['X-Doctor-Token'] = doctorToken;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/documents/${sessionId}/${docId}`, {
+    method: 'DELETE',
+    headers,
+  });
+  return response.ok;
+}
+
+export async function contributeClinicalCase(
+  request: CaseContributionRequest,
+  apiKey?: string,
+  doctorToken?: string
+): Promise<CaseContributionResponse> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-API-Key': apiKey || DEFAULT_API_KEY,
+  };
+  if (doctorToken) {
+    headers['Authorization'] = `Bearer ${doctorToken}`;
+    headers['X-Doctor-Token'] = doctorToken;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/cases/contribute`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.detail || `Case Contribution Failed (${response.status})`);
   }
   return response.json();
 }

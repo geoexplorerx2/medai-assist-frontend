@@ -7,7 +7,9 @@ import {
   DoctorPublicSummary,
   DoctorLoginRequest,
   DoctorRegisterRequest,
-  DoctorUpdateRequest
+  DoctorUpdateRequest,
+  PatientDocument,
+  CaseContributionRequest
 } from '@/lib/types';
 import {
   sendChatMessage,
@@ -18,8 +20,14 @@ import {
   registerDoctor as apiRegisterDoctor,
   fetchDoctorProfile,
   updateDoctorProfile as apiUpdateDoctorProfile,
-  fetchDemoDoctors
+  fetchDemoDoctors,
+  uploadPatientDocument,
+  fetchSessionDocuments,
+  deleteSessionDocument,
+  contributeClinicalCase
 } from '@/lib/api';
+
+
 
 interface ChatState {
   // Doctor Auth & Profile
@@ -30,6 +38,7 @@ interface ChatState {
   authError: string | null;
   demoDoctors: DoctorPublicSummary[];
   isProfileModalOpen: boolean;
+  isContributeModalOpen: boolean;
 
   // Chat & Engine
   sessions: Session[];
@@ -37,6 +46,8 @@ interface ChatState {
   apiKey: string;
   isApiLocked: boolean;
   isLoading: boolean;
+  isUploadingDocument: boolean;
+  documentUploadError: string | null;
   error: string | null;
   isBackendHealthy: boolean;
   availableSpecialties: string[];
@@ -57,6 +68,7 @@ interface ChatState {
   updateProfile: (updates: DoctorUpdateRequest) => Promise<boolean>;
   loadDemoDoctors: () => Promise<void>;
   setProfileModalOpen: (open: boolean) => void;
+  setContributeModalOpen: (open: boolean) => void;
 
   // Consultation Actions
   createSession: (initialTitle?: string) => string;
@@ -68,6 +80,10 @@ interface ChatState {
   setSelectedSpecialty: (s: string | null) => void;
   setMobileSidebarOpen: (open: boolean) => void;
   toggleMobileSidebar: () => void;
+  uploadPatientDoc: (file: File) => Promise<boolean>;
+  removePatientDoc: (docId: string) => Promise<void>;
+  loadSessionDocs: (sessionId: string) => Promise<void>;
+  contributeCase: (caseData: CaseContributionRequest) => Promise<{ success: boolean; message: string }>;
   submitFeedback: (
     messageId: string,
     rating: FeedbackRating,
@@ -88,12 +104,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   authError: null,
   demoDoctors: [],
   isProfileModalOpen: false,
+  isContributeModalOpen: false,
 
   sessions: [],
   currentSessionId: null,
   apiKey: process.env.NEXT_PUBLIC_DEFAULT_API_KEY || 'medai_super_secret_key_2024',
   isApiLocked: false,
   isLoading: false,
+  isUploadingDocument: false,
+  documentUploadError: null,
   error: null,
   isBackendHealthy: false,
   availableSpecialties: [],
@@ -101,12 +120,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   feedbackSubmitting: null,
   isMobileSidebarOpen: false,
 
+
   setApiKey: (key) => set({ apiKey: key }),
   lockApi: () => set({ isApiLocked: true }),
 
   setMobileSidebarOpen: (open) => set({ isMobileSidebarOpen: open }),
   toggleMobileSidebar: () => set((s) => ({ isMobileSidebarOpen: !s.isMobileSidebarOpen })),
   setProfileModalOpen: (open) => set({ isProfileModalOpen: open }),
+  setContributeModalOpen: (open) => set({ isContributeModalOpen: open }),
+
 
   verifyBackend: async () => {
     const healthy = await checkHealth();
@@ -469,6 +491,130 @@ export const useChatStore = create<ChatState>((set, get) => ({
         feedbackSubmitting: null,
         error: err instanceof Error ? err.message : 'Failed to submit clinical feedback.',
       });
+    }
+  },
+
+  uploadPatientDoc: async (file: File) => {
+    const state = get();
+    let sessionId = state.currentSessionId;
+    if (!sessionId) {
+      sessionId = get().createSession(`Consultation: ${file.name.slice(0, 24)}`);
+    }
+
+    set({ isUploadingDocument: true, documentUploadError: null });
+    try {
+      const doc = await uploadPatientDocument(
+        file,
+        sessionId,
+        state.apiKey,
+        state.doctorToken || undefined
+      );
+
+      const updatedSessions = get().sessions.map((sess) => {
+        if (sess.id === sessionId) {
+          const currentDocs = sess.attachedDocuments || [];
+          return {
+            ...sess,
+            attachedDocuments: [...currentDocs, doc],
+          };
+        }
+        return sess;
+      });
+
+      set({
+        isUploadingDocument: false,
+        documentUploadError: null,
+        sessions: updatedSessions,
+      });
+
+      if (typeof window !== 'undefined' && state.currentDoctor) {
+        localStorage.setItem(getStorageKey(state.currentDoctor.id), JSON.stringify(updatedSessions));
+      }
+      return true;
+    } catch (err) {
+      set({
+        isUploadingDocument: false,
+        documentUploadError: err instanceof Error ? err.message : 'Failed to upload patient document.',
+      });
+      return false;
+    }
+  },
+
+  removePatientDoc: async (docId: string) => {
+    const state = get();
+    const sessionId = state.currentSessionId;
+    if (!sessionId) return;
+
+    try {
+      await deleteSessionDocument(
+        sessionId,
+        docId,
+        state.apiKey,
+        state.doctorToken || undefined
+      );
+
+      const updatedSessions = get().sessions.map((sess) => {
+        if (sess.id === sessionId) {
+          const currentDocs = sess.attachedDocuments || [];
+          return {
+            ...sess,
+            attachedDocuments: currentDocs.filter((d) => d.id !== docId),
+          };
+        }
+        return sess;
+      });
+
+      set({ sessions: updatedSessions });
+
+      if (typeof window !== 'undefined' && state.currentDoctor) {
+        localStorage.setItem(getStorageKey(state.currentDoctor.id), JSON.stringify(updatedSessions));
+      }
+    } catch (err) {
+      console.error('Failed to remove document:', err);
+    }
+  },
+
+  loadSessionDocs: async (sessionId: string) => {
+    const state = get();
+    try {
+      const docs = await fetchSessionDocuments(
+        sessionId,
+        state.apiKey,
+        state.doctorToken || undefined
+      );
+
+      const updatedSessions = get().sessions.map((sess) =>
+        sess.id === sessionId ? { ...sess, attachedDocuments: docs } : sess
+      );
+
+      set({ sessions: updatedSessions });
+    } catch (err) {
+      console.error('Failed to fetch session documents:', err);
+    }
+  },
+
+  contributeCase: async (caseData: CaseContributionRequest) => {
+    const state = get();
+    try {
+      const resp = await contributeClinicalCase(
+        caseData,
+        state.apiKey,
+        state.doctorToken || undefined
+      );
+
+      // Refresh specialties in case a new one was added
+      get().loadSpecialties();
+
+      return {
+        success: true,
+        message: resp.message || `Case '${caseData.sample_name}' indexed successfully!`
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to contribute clinical case.';
+      return {
+        success: false,
+        message: msg
+      };
     }
   },
 }));

@@ -7,6 +7,7 @@ import LoginForm from '@/components/LoginForm';
 import Sidebar from '@/components/Sidebar';
 import ChatContainer from '@/components/ChatContainer';
 import DoctorProfileModal from '@/components/DoctorProfileModal';
+import ContributeCaseModal from '@/components/ContributeCaseModal';
 
 export default function Home() {
   const { isAuthenticated, initAuth, loadSpecialties, verifyBackend } = useChatStore();
@@ -51,6 +52,9 @@ export default function Home() {
 
       {/* Global Doctor Profile View & Edit Modal */}
       <DoctorProfileModal />
+
+      {/* Global Doctor Clinical Case Contribution Modal */}
+      <ContributeCaseModal />
     </>
   );
 }

@@ -1,25 +1,46 @@
 'use client';
 
-import { useState, FormEvent, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, FormEvent, useRef, useEffect, DragEvent, ChangeEvent } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useChatStore } from '@/store/chatStore';
-import { Send, Loader2, Filter, RotateCcw, Sparkles } from 'lucide-react';
+import {
+  Send,
+  Loader2,
+  RotateCcw,
+  Sparkles,
+  Mic,
+  Paperclip,
+  FileText,
+  Image as ImageIcon,
+  X,
+  AlertCircle,
+  UploadCloud
+} from 'lucide-react';
+import MedicalDictationModal from './MedicalDictationModal';
 
 export default function ChatInput() {
   const [input, setInput] = useState('');
+  const [isDictationOpen, setIsDictationOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
   const {
     sendMessage,
     isLoading,
     currentSessionId,
-    availableSpecialties,
     selectedSpecialty,
-    setSelectedSpecialty,
     clearSessionMessages,
     sessions,
+    uploadPatientDoc,
+    removePatientDoc,
+    isUploadingDocument,
+    documentUploadError,
   } = useChatStore();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const currentSession = sessions.find((s) => s.id === currentSessionId);
+  const attachedDocs = currentSession?.attachedDocuments || [];
   const hasMessages = (currentSession?.messages?.length ?? 0) > 0;
 
   useEffect(() => {
@@ -40,76 +61,302 @@ export default function ChatInput() {
     await sendMessage(q);
   };
 
+  const handleInsertDictation = (dictatedText: string) => {
+    setInput((prev) => (prev ? `${prev} ${dictatedText}` : dictatedText));
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  };
+
+  const handleSendDirectDictation = async (dictatedText: string) => {
+    setInput('');
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+    await sendMessage(dictatedText);
+  };
+
+  const handleFileUpload = async (files: FileList | File[]) => {
+    if (!files || files.length === 0) return;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      await uploadPatientDoc(file);
+    }
+  };
+
+  const handleFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      handleFileUpload(e.target.files);
+      e.target.value = ''; // Reset input to allow uploading same file again
+    }
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await handleFileUpload(e.dataTransfer.files);
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (!bytes || bytes === 0) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   return (
-    <div className="glass border-t border-slate-200 p-2.5 sm:p-4">
-      <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
-        {/* Input Controls Container */}
-        <div className="flex items-end gap-2 bg-white border border-slate-200 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 rounded-2xl p-2 shadow-xs transition-all">
-          {/* Text Input Area */}
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Describe clinical symptoms, ask about medication plans, or enter a diagnostic query..."
-            disabled={isLoading}
-            rows={1}
-            className="flex-1 resize-none px-2 py-1.5 bg-transparent border-0 focus:outline-none text-xs sm:text-sm text-slate-800 placeholder-slate-400 disabled:opacity-50 min-h-[38px] max-h-[140px]"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(e);
-              }
-            }}
+    <>
+      <div className="glass border-t border-slate-200 p-2.5 sm:p-4">
+        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
+          {/* Document Upload Error Banner */}
+          <AnimatePresence>
+            {documentUploadError && (
+              <motion.div
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                className="mb-2 p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between text-xs text-rose-700"
+              >
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-500" />
+                  <span>{documentUploadError}</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Attached Patient Documents Chips */}
+          <AnimatePresence>
+            {(attachedDocs.length > 0 || isUploadingDocument) && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-2 flex flex-wrap items-center gap-2"
+              >
+                <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
+                  <Paperclip className="w-3 h-3 text-blue-600" />
+                  Attached Patient Reports ({attachedDocs.length}):
+                </span>
+
+                {attachedDocs.map((doc) => (
+                  <motion.div
+                    key={doc.id}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50/90 hover:bg-blue-100 border border-blue-200/90 text-xs text-blue-900 shadow-2xs transition-all"
+                    title={`Preview: ${doc.preview}`}
+                  >
+                    {doc.file_type === 'image' ? (
+                      <ImageIcon className="w-3.5 h-3.5 text-cyan-600 flex-shrink-0" />
+                    ) : (
+                      <FileText className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                    )}
+
+                    <span className="font-medium max-w-[140px] sm:max-w-[200px] truncate text-[11px]">
+                      {doc.filename}
+                    </span>
+
+                    {doc.file_size > 0 && (
+                      <span className="text-[9px] text-blue-500/80 font-mono">
+                        ({formatFileSize(doc.file_size)})
+                      </span>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => removePatientDoc(doc.id)}
+                      className="p-0.5 ml-0.5 rounded-full hover:bg-blue-200/70 text-blue-600 hover:text-rose-600 transition-colors cursor-pointer"
+                      title="Remove document from consultation"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </motion.div>
+                ))}
+
+                {/* Upload Spinner Badge */}
+                {isUploadingDocument && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs"
+                  >
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                    <span className="text-[11px] font-medium">Extracting medical lab tables & OCR...</span>
+                  </motion.div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Hidden File Input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv"
+            onChange={handleFileInputChange}
+            className="hidden"
           />
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            {/* Clear Messages shortcut if session has messages */}
-            {hasMessages && currentSessionId && (
-              <button
-                type="button"
-                onClick={() => clearSessionMessages(currentSessionId)}
-                title="Clear Consultation Messages"
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors hidden sm:inline-flex"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
+          {/* Input Controls Container with Drag and Drop */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`relative flex items-end gap-2 bg-white border ${
+              isDragging
+                ? 'border-blue-500 bg-blue-50/40 ring-4 ring-blue-100 border-dashed'
+                : 'border-slate-200 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100'
+            } rounded-2xl p-2 shadow-xs transition-all`}
+          >
+            {/* Drag Overlay Hint */}
+            {isDragging && (
+              <div className="absolute inset-0 z-10 bg-blue-50/90 backdrop-blur-xs rounded-2xl flex items-center justify-center pointer-events-none">
+                <div className="flex items-center gap-2 text-blue-700 font-semibold text-sm">
+                  <UploadCloud className="w-5 h-5 animate-bounce" />
+                  <span>Drop Patient PDF, CBC Lab Panel, or Scanned Image to analyze</span>
+                </div>
+              </div>
             )}
 
-            {/* Send Button */}
+            {/* Attach Patient Document Button (📎) */}
             <motion.button
-              type="submit"
-              disabled={isLoading || !input.trim()}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
+              type="button"
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadingDocument}
+              title="Attach Patient PDF & Lab Reports (PDF, PNG, JPG, CSV)"
+              className="p-2 text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 rounded-xl transition-all flex items-center justify-center flex-shrink-0 cursor-pointer shadow-2xs hover:shadow-xs group disabled:opacity-50"
             >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+              {isUploadingDocument ? (
+                <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
               ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  <span className="hidden sm:inline">Send</span>
-                </>
+                <Paperclip className="w-4 h-4 group-hover:text-blue-600 transition-colors" />
               )}
             </motion.button>
-          </div>
-        </div>
 
-        {/* Input Bottom Bar with Specialty Selector & Keyboard Hint */}
-        <div className="flex flex-wrap items-center justify-between gap-2 mt-2 px-1 text-[11px] text-slate-400">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500">
-              <Sparkles className="w-3 h-3 text-cyan-500" />
-              {selectedSpecialty ? `Domain: ${selectedSpecialty}` : 'Auto-detected specialty'}
+            {/* Voice Dictation Button */}
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              onClick={() => setIsDictationOpen(true)}
+              title="Medical Voice Dictation (Persian / English)"
+              className="p-2 text-cyan-700 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200/80 rounded-xl transition-all flex items-center justify-center flex-shrink-0 cursor-pointer shadow-2xs hover:shadow-xs group"
+            >
+              <Mic className="w-4 h-4 group-hover:text-blue-600 transition-colors" />
+            </motion.button>
+
+            {/* Text Input Area */}
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Describe clinical symptoms, ask about uploaded lab reports, or dictate in Persian..."
+              disabled={isLoading}
+              rows={1}
+              className="flex-1 resize-none px-2 py-1.5 bg-transparent border-0 focus:outline-none text-xs sm:text-sm text-slate-800 placeholder-slate-400 disabled:opacity-50 min-h-[38px] max-h-[140px]"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }}
+            />
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Clear Messages shortcut if session has messages */}
+              {hasMessages && currentSessionId && (
+                <button
+                  type="button"
+                  onClick={() => clearSessionMessages(currentSessionId)}
+                  title="Clear Consultation Messages"
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors hidden sm:inline-flex"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+              )}
+
+              {/* Send Button */}
+              <motion.button
+                type="submit"
+                disabled={isLoading || (!input.trim() && attachedDocs.length === 0)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span className="hidden sm:inline">Send</span>
+                  </>
+                )}
+              </motion.button>
+            </div>
+          </div>
+
+          {/* Input Bottom Bar with Specialty Selector & Dictation Hint */}
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-2 px-1 text-[11px] text-slate-400">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500">
+                <Sparkles className="w-3 h-3 text-cyan-500" />
+                {selectedSpecialty ? `Domain: ${selectedSpecialty}` : 'Auto-detected specialty'}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="hidden sm:inline-flex items-center gap-1 text-[10px] font-medium text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100/80 px-2 py-0.5 rounded-md border border-blue-200 transition-colors"
+              >
+                <Paperclip className="w-2.5 h-2.5" />
+                <span>Upload Lab PDF / Image</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsDictationOpen(true)}
+                className="hidden sm:inline-flex items-center gap-1 text-[10px] font-medium text-cyan-700 hover:text-cyan-800 bg-cyan-50 hover:bg-cyan-100/80 px-2 py-0.5 rounded-md border border-cyan-200 transition-colors"
+              >
+                <Mic className="w-2.5 h-2.5" />
+                <span>دیکته صوتی پزشکی (Persian Voice)</span>
+              </button>
+            </div>
+
+            <span className="hidden md:inline text-[10px] text-slate-400">
+              Press <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-600 font-mono">Enter</kbd> to submit • <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-600 font-mono">Shift+Enter</kbd> for newline
             </span>
           </div>
+        </form>
+      </div>
 
-          <span className="hidden md:inline text-[10px] text-slate-400">
-            Press <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-600 font-mono">Enter</kbd> to submit • <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-600 font-mono">Shift+Enter</kbd> for newline
-          </span>
-        </div>
-      </form>
-    </div>
+      {/* Persian & English Medical Voice Dictation Modal */}
+      <MedicalDictationModal
+        isOpen={isDictationOpen}
+        onClose={() => setIsDictationOpen(false)}
+        onInsertText={handleInsertDictation}
+        onSendDirect={handleSendDirectDictation}
+      />
+    </>
   );
 }

@@ -87,6 +87,21 @@ export interface Message {
   normalized_clinical_terms?: string[];
 }
 
+export interface PatientDocument {
+  id: string;
+  filename: string;
+  file_type: string;
+  file_size: number;
+  char_count: number;
+  uploaded_at: string;
+  preview: string;
+}
+
+export interface PatientDocumentsListResponse {
+  session_id: string;
+  documents: PatientDocument[];
+}
+
 export interface Session {
   id: string;
   title: string;
@@ -94,6 +109,7 @@ export interface Session {
   createdAt: string;
   specialty?: string | null;
   doctorId?: string;
+  attachedDocuments?: PatientDocument[];
 }
 
 export type FeedbackRating = 'verify' | 'correct';
@@ -111,4 +127,29 @@ export interface FeedbackRequest {
 export interface FeedbackResponse {
   status: string;
   feedback_id: string;
+}
+
+export interface DictationResponse {
+  text: string;
+  language: string;
+  duration?: number;
+  refined_text?: string | null;
+  medical_terms?: string[];
+}
+
+export interface CaseContributionRequest {
+  specialty: string;
+  sample_name: string;
+  description?: string;
+  transcription: string;
+  keywords?: string;
+}
+
+export interface CaseContributionResponse {
+  status: string;
+  doc_id: string;
+  sample_name: string;
+  specialty: string;
+  chunks_indexed: number;
+  message: string;
 }

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useChatStore } from '@/store/chatStore';
 import {
   Plus,
+  PlusCircle,
   MessageSquare,
   Trash2,
   X,
@@ -14,6 +15,7 @@ import {
   User,
   ShieldCheck,
   Settings,
+  BookOpen
 } from 'lucide-react';
 import Logo from './Logo';
 
@@ -32,6 +34,7 @@ export default function Sidebar() {
     isBackendHealthy,
     currentDoctor,
     setProfileModalOpen,
+    setContributeModalOpen,
     logout,
   } = useChatStore();
 
@@ -59,8 +62,8 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* New Consultation CTA */}
-      <div className="p-3">
+      {/* Action CTAs */}
+      <div className="p-3 space-y-2">
         <button
           onClick={() => createSession()}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl text-xs md:text-sm font-semibold transition-all shadow-md active:scale-98"
@@ -68,7 +71,19 @@ export default function Sidebar() {
           <Plus className="w-4 h-4" />
           New Consultation
         </button>
+
+        <button
+          onClick={() => {
+            setContributeModalOpen(true);
+            setMobileSidebarOpen(false);
+          }}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/80 hover:border-blue-500/60 text-slate-200 hover:text-white rounded-xl text-xs font-semibold transition-all shadow-xs active:scale-98 group"
+        >
+          <PlusCircle className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
+          <span>Contribute Clinical Case</span>
+        </button>
       </div>
+
 
       {/* Medical Specialty Domain Filter */}
       {availableSpecialties.length > 0 && (
